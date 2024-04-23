@@ -2,6 +2,7 @@
 <ul>
   {% for image in images %}
   <h2>{{ image.name }}</h2>
+  <p>{{ image.uuid }}</p>
   <img src="{{ image.cover.url}}" alt="{{ post.name }}" />
   {% endfor %}
 </ul>
