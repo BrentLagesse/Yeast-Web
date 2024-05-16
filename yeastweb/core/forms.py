@@ -1,4 +1,4 @@
-from core.models import Image
+from core.models import UploadedImage
 from django import forms
 
 
