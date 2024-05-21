@@ -1,16 +1,23 @@
 from django.shortcuts import  get_object_or_404, render
 from django.http import HttpResponse
 from core.models import UploadedImage 
-# from ..models import Image 
 from django.template.response import TemplateResponse
-# Create your views here.
 # chose function because https://spookylukey.github.io/django-views-the-right-way/context-data.html
+
 def pre_process(request, uuid):
     image = get_object_or_404(UploadedImage, uuid=uuid)
+    # for debugging purposes, i'm using http request methods to split each steps indivually for debugging purposes as that's what templates can send easily.
+    # will change how it works when its finish
+    CSV_NAME = 'preprocessed_images_list.csv'
+    output_directory = os.path.join(MEDIA_ROOT, str(uuid))
+    
+    csv_path = os.path.join(output_directory, CSV_NAME)
     if request.method == "POST":
         preprocess_images(uuid, image)
         # form = UploadImageForm(request.POST, request.FILES)
         return HttpResponse("Preprocess completed")
+    elif request.method == "GET":
+        predict_images()
     else:
         print("testing", uuid)
         print(image.file_location)
@@ -29,14 +36,9 @@ import skimage.filters
 from mrc import DVFile
 from yeastweb.settings import MEDIA_ROOT
 # def preprocess_images(inputdirectory, mask_dir, outputdirectory, outputfile, verbose = False, use_cache=True):
-def preprocess_images(uuid, uploaded_image : UploadedImage):
+def preprocess_images(uuid, uploaded_image : UploadedImage, output_directory :str, csv_path :str):
     # constants, easily can be changed 
     PRE_PROCESS_FOLDER_NAME = "preprocessed_images"
-    CSV_NAME = 'preprocessed_images_list.csv'
-    
-    #converts windows file path to linux path 
-    output_directory = os.path.join(MEDIA_ROOT, str(uuid))
-    csv_path = os.path.join(output_directory, CSV_NAME)
     print("output_directory", output_directory)
 
     # Creates csv file and writes in first 2 columns ImageId and EncodedRLE

@@ -8,4 +8,11 @@
     {% csrf_token %}
     <input type="submit" value="Run Pre-process" />
   </form>
+  <form action="" method="get" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="submit" value="Run predict_images" />
+  </form>
+  <form action="" method="delete" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="submit" value="Run convert_to_image" />
 </ul>
