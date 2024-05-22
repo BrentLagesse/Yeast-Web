@@ -18,7 +18,13 @@ import multiprocessing
 import numpy as np
 import skimage.transform
 import tensorflow as tf
-import tensorflow.keras
+from tensorflow import keras
+
+# from keras import backend as K
+# from keras import layers as KL
+# # from keras.python import engine as KE
+# from keras import models as KM
+
 import tensorflow.keras.backend as K
 import tensorflow.keras.layers as KL
 import tensorflow.python.keras.engine as KE
@@ -30,7 +36,7 @@ from . import utils
 # Requires TensorFlow 1.3+ and Keras 2.0.8+.
 from distutils.version import LooseVersion
 assert LooseVersion(tf.__version__) >= LooseVersion("1.3")
-assert LooseVersion(tensorflow.keras.__version__) >= LooseVersion('2.0.8')
+assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
 
 
 ############################################################

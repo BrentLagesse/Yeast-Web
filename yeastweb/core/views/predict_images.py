@@ -28,9 +28,12 @@ from ..mrcnn import my_functions as f
 
 import time
 
+#django
+import core
+
 #######################################################################################
 ## SET UP CONFIGURATION
-from . import config
+from core.mrcnn import config
 
 class BowlConfig(config.Config):
     """Configuration for training on the toy shapes dataset.
@@ -76,52 +79,60 @@ class BowlConfig(config.Config):
 '''Run images through the pre-trained neural network.
 
 Arguments:
-test_path: Path where the images are stored (preprocess these using preprocess_images.py)
-inputfile: Path of the comma-delimited file of images names.
+preprocess_image_path: Path where the images are stored (preprocess these using preprocess_images.py)
+preprocessed_image_list_path: Path of the comma-delimited file of images names.
 outputfile: Path to write the comma-delimited run-length file to.
 rescale: Set to True if rescale images before processing (saves time)
 scale_factor: Multiplier to downsample images by
 verbose: Verbose or not (true/false)'''
-def predict_images(test_path, sample_submission, outputfilename, rescale = False, scale_factor = 2, verbose = True):
+# def predict_images(test_path, sample_submission, outputfilename, rescale = False, scale_factor = 2, verbose = True):
+def predict_images(preprocess_image_path, preprocessed_image_list_path, output_directory, rescale = False, scale_factor = 2, verbose = True):
     inference_config = BowlConfig()
-    ROOT_DIR = os.getcwd()
+    # ROOT_DIR = os.getcwd()
+    rle_file = os.path.join(output_directory, "compressed_masks.csv")
+    ROOT_DIR = output_directory
+    print("output_directory", output_directory)
+    logs_path = os.path.join(output_directory, "logs")
+    os.makedirs(logs_path)
     MODEL_DIR = os.path.join(ROOT_DIR, "logs")
-
-    output = open(outputfilename, "w")
+    # MODEL_DIR= os.path.join()
+    output = open(rle_file, "w")
     output.truncate()
     output.write("ImageId, EncodedPixels\n")
     output.close()
 
-    sample_submission = pd.read_csv(sample_submission)
-    n_images = len(sample_submission.ImageId)
+    preprocessed_image_list_path = pd.read_csv(preprocessed_image_list_path)
+    n_images = len(preprocessed_image_list_path.ImageId)
     if n_images == 0:   # loading tensorflow takes a long time.  Don't do it if we don't use it.
+        print("NO IMAGES WERE DETECTED")
         return
     import tensorflow as tf
     from ..mrcnn import model as modellib
 
     tf.random.set_seed(seed)
-
-    if test_path[-1] != "/":
-        test_path = test_path + "/"
+    # if preprocess_image_path[-1] != "/":
+    #     preprocess_image_path = preprocess_image_path + "/"
     
-    dirname = os.path.dirname(__file__)
-    model_path = os.path.join(dirname, '../weights/deepretina_final.h5')
-
+    # dirname = os.path.dirname(__file__)
+    
+    #gets core's absolute path 
+    dirname = os.path.dirname(core.__file__)
+    print("dirname", dirname)
+    model_path = os.path.join(dirname, 'weights','deepretina_final.h5')
+    print("model_path", model_path)
     if verbose:
         print("Loading weights from ", model_path)
 
     start_time = time.time()
-
     # Recreate the model in inference mode
     model = modellib.MaskRCNN(mode="inference",
                               config=inference_config,
                               model_dir=MODEL_DIR)
     model.load_weights(model_path, by_name=True)
-
-
+    print(n_images)
     for i in np.arange(n_images):
         start_time = time.time()
-        image_id = sample_submission.ImageId[i]
+        image_id = preprocessed_image_list_path.ImageId[i]
         if verbose:
             print('Start detect', i, '  ', image_id)
         ##Set seeds for each image, just in case..
@@ -130,7 +141,8 @@ def predict_images(test_path, sample_submission, outputfilename, rescale = False
         tf.random.set_seed(seed)
 
         ## Load the image
-        image_path = os.path.join(test_path, image_id, 'images', image_id + '.tif')
+        # image_path = os.path.join(preprocess_image_path, image_id, 'images', image_id + '.tif')
+        image_path = preprocess_image_path #ADAM CHANGE THIS LATER
         original_image = np.array(Image.open(image_path))
 
 
@@ -163,10 +175,12 @@ def predict_images(test_path, sample_submission, outputfilename, rescale = False
         if len(class_ids):  ## Some objects are detected
             ImageId_batch, EncodedPixels_batch, _ = f.numpy2encoding(pred_masks, image_id, scores=scores_masks,
                                                                      dilation=True)
-            f.write2csv(outputfilename, ImageId_batch, EncodedPixels_batch)
+            f.write2csv(rle_file, ImageId_batch, EncodedPixels_batch)
         else:
             pass
 
         if verbose:
             print("Completed in", time.time() - start_time)
+    
+    print("predict_images FINISHED")
 

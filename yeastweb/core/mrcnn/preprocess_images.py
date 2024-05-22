@@ -4,76 +4,76 @@ import os
 import skimage.exposure
 import skimage.filters
 from mrc import DVFile
+from yeastweb.settings import MEDIA_ROOT
+from core.models import UploadedImage
+# def preprocess_images(inputdirectory, mask_dir, outputdirectory, outputfile, verbose = False, use_cache=True):
+def preprocess_images(uuid, uploaded_image : UploadedImage, output_directory :str) -> tuple[str, str]:
+    # constants, easily can be changed 
+    PRE_PROCESS_FOLDER_NAME = "preprocessed_images"
+    print("output_directory", output_directory)
 
-'''Convert input images to RGB format in separate folders required by MRCNN
-
-Arguments:
-inputdirectory: Input directory containing images.
-outputdirectory: Output directory to put new files in.
-outputfile: Path to save comma-delimited file that will tell the neural network the image paths.'''
-def preprocess_images(inputdirectory, mask_dir, outputdirectory, outputfile, verbose = False, use_cache=True):
-    if inputdirectory[-1] != "/":
-        inputdirectory = inputdirectory + "/"
-    if outputdirectory[-1] != "/":
-        outputdirectory = outputdirectory + "/"
-
-    if not os.path.exists(outputdirectory):
-        os.makedirs(outputdirectory)
-
-    output = open(outputfile, "w")
-    output.write("ImageId, EncodedRLE" + "\n")
-    output.close()
-    for imagename in os.listdir(inputdirectory):
-        if '_PRJ' not in imagename:
-            continue
-        extspl = os.path.splitext(imagename)
-        #check if there are .dv files and use them first
-        image = 0
-        fsize = os.path.getsize(inputdirectory + imagename)
-        if fsize > 8230000:
-            #File is a live cell imaging that has more than 4 images
-            f = DVFile(inputdirectory + imagename)
-            image = f.asarray()[0]
-        if extspl[1] == '.dv':
-            f = DVFile(inputdirectory + imagename)
-            image = f.asarray()[0]
-
+    # Creates csv file and writes in first 2 columns ImageId and EncodedRLE for each image
+    CSV_NAME = 'preprocessed_images_list.csv'
+    preprocessed_image_list_path = os.path.join(output_directory, CSV_NAME)
+    preprocessed_image_list = open(preprocessed_image_list_path, "w")
+    preprocessed_image_list.write("ImageId, EncodedRLE" + "\n")
+    preprocessed_image_list.close()
+    
+    #converts windows file path to linux path and joins 
+    image_path = os.path.join(MEDIA_ROOT, str(uploaded_image.file_location).replace("/", "\\"))
+    f = DVFile(image_path)
+    # gets raw image from uploaded dv file
+    image = f.asarray()[0]
+    # fileSize = os.path.getsize(uploaded_image.file_location)
+    # if fileSize > 8230000:
+        #File is a live cell imaging that has more than 4 images
+    #     f = DVFile(uploaded_image)
+    #     image = f.asarray()[0]
+    # if extspl[1] == '.dv':
+    #     f = DVFile(uploaded_image)
+    #     image = f.asarray()[0]
         #if we don't have .dv files, see if there are tifs in the directory with the proper name structure
 
-        elif len(extspl) != 2 or extspl[1] != '.tif':  # ignore files that aren't tifs
-            continue
-        else:
-            image = np.array(Image.open(inputdirectory + imagename))
-        try:
-            if verbose:
-                print ("Preprocessing ", imagename)
-            existing_files = os.listdir(mask_dir)
-            if imagename in existing_files and use_cache:   #skip this if we have a mask already
-                continue
+        # elif len(extspl) != 2 or extspl[1] != '.tif':  # ignore files that aren't tifs
+        #     continue
+        # else:
+        #     image = np.array(Image.open(inputdirectory + imagename))
+    # try:
+        # if verbose:
+        # print ("Preprocessing ", imagename)
+        # existing_files = os.listdir(mask_dir)
+        # if imagename in existing_files and use_cache:   #skip this if we have a mask already
+            # continue
+    # outputdirectory = imagePath
+    # grabs only file name
+ 
+    if len(image.shape) > 2:
+        image = image[:, :, 0]
+    height = image.shape[0]
+    width = image.shape[1]
 
-            if len(image.shape) > 2:
-                image = image[:, :, 0]
-            height = image.shape[0]
-            width = image.shape[1]
+    # Preprocessing operations
+    image = skimage.exposure.rescale_intensity(np.float32(image), out_range=(0, 1))
+    image = np.round(image * 255).astype(np.uint8)        #convert to 8 bit
+    image = np.expand_dims(image, axis=-1)
+    rgb_image = np.tile(image, 3)                          #convert to RGB
+    #rgbimage = skimage.filters.gaussian(rgbimage, sigma=(1,1))   # blur it first?
 
-            # Preprocessing operations
-            image = skimage.exposure.rescale_intensity(np.float32(image), out_range=(0, 1))
-            image = np.round(image * 255).astype(np.uint8)        #convert to 8 bit
-            image = np.expand_dims(image, axis=-1)
-            rgbimage = np.tile(image, 3)                          #convert to RGB
-            #rgbimage = skimage.filters.gaussian(rgbimage, sigma=(1,1))   # blur it first?
-            imagename = imagename.split(".")[0]
-
-            if not os.path.exists(outputdirectory + imagename) or not use_cache:
-                os.makedirs(outputdirectory + imagename)
-                os.makedirs(outputdirectory + imagename + "/images/")
-            rgbimage = Image.fromarray(rgbimage)
-            rgbimage.save(outputdirectory + imagename + "/images/" + imagename + ".tif")
-
-            output = open(outputfile, "a")
-            output.write(imagename + ", " + str(height) + " " + str(width) + "\n")
-            output.close()
-        except IOError:
-            pass
-
-
+    # if not os.path.exists(outputdirectory + imagename) or not use_cache:
+    # if not os.path.exists(outputdirectory + imagename):
+    # os.makedirs(outputdirectory + imagename)
+    # os.makedirs(outputdirectory + imagename + "/images/")
+    rgb_image = Image.fromarray(rgb_image)
+    pre_process_dir_path = os.path.join(output_directory, PRE_PROCESS_FOLDER_NAME)
+    os.makedirs(pre_process_dir_path)
+    image_name = uploaded_image.name.split(".")[0] + ".tif"
+    pre_process_image_path = os.path.join(pre_process_dir_path, image_name)
+    rgb_image.save(pre_process_image_path)
+    
+    preprocessed_image_list = open(preprocessed_image_list_path, "a")
+    preprocessed_image_list.write(uploaded_image.name + ", " + str(height) + " " + str(width) + "\n")
+    preprocessed_image_list.close()
+    print('Pre-process completed FINISHED')
+    return pre_process_image_path, preprocessed_image_list_path
+    # except IOError:
+    #     pass

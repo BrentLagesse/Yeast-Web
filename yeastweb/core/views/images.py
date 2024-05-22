@@ -3,6 +3,7 @@ from django.shortcuts import render, redirect
 from django.urls import reverse_lazy
 from core.forms import UploadImageForm
 from core.models import UploadedImage
+
 import uuid
 
 # Create your views here.
