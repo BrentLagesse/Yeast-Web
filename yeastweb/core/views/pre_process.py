@@ -14,7 +14,7 @@ def pre_process(request, uuid):
     if request.method == "POST":
         output_directory = os.path.join(MEDIA_ROOT, str(uuid))
         preprocess_image_path, preprocessed_image_list_path = preprocess_images(uuid, image, output_directory)
-        # rle_file = predict_images(preprocess_image_path, preprocessed_image_list_path, output_directory)
+        rle_file = predict_images(preprocess_image_path, preprocessed_image_list_path, output_directory)
         return HttpResponse("Preprocess completed")
     else:
         print(image.file_location)

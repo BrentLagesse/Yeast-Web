@@ -86,7 +86,7 @@ rescale: Set to True if rescale images before processing (saves time)
 scale_factor: Multiplier to downsample images by
 verbose: Verbose or not (true/false)'''
 # def predict_images(test_path, sample_submission, outputfilename, rescale = False, scale_factor = 2, verbose = True):
-def predict_images(preprocess_image_path, preprocessed_image_list_path, output_directory, rescale = False, scale_factor = 2, verbose = True):
+def predict_images(preprocess_image_path, preprocessed_image_list_path, output_directory, rescale = False, scale_factor = 2, verbose = True) -> str:
     inference_config = BowlConfig()
     # ROOT_DIR = os.getcwd()
     rle_file = os.path.join(output_directory, "compressed_masks.csv")
@@ -129,6 +129,7 @@ def predict_images(preprocess_image_path, preprocessed_image_list_path, output_d
                               config=inference_config,
                               model_dir=MODEL_DIR)
     model.load_weights(model_path, by_name=True)
+    
     print(n_images)
     for i in np.arange(n_images):
         start_time = time.time()
@@ -183,4 +184,5 @@ def predict_images(preprocess_image_path, preprocessed_image_list_path, output_d
             print("Completed in", time.time() - start_time)
     
     print("predict_images FINISHED")
+    return rle_file
 
