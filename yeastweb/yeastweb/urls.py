@@ -16,15 +16,15 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from core.views import upload_file, homepage, pre_process
+from core.views import upload_images, homepage, pre_process_step
 from django.conf import settings
 from django.conf.urls.static import static  # new
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', homepage, name="homepage"),
-    path('image/upload/', upload_file, name="image_upload" ),
-    path('image/<uuid:uuid>/', pre_process, name="pre_process"),
+    path('image/upload/', upload_images, name="image_upload" ),
+    path('image/<uuid:uuid>/', pre_process_step, name="pre_process"),
 ]
 
 if settings.DEBUG:  # new

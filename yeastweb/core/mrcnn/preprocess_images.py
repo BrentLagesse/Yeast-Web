@@ -6,21 +6,26 @@ import skimage.filters
 from mrc import DVFile
 from yeastweb.settings import MEDIA_ROOT
 from core.models import UploadedImage
+from pathlib import Path
+from core.views.variables import PRE_PROCESS_FOLDER_NAME
+#Original header
 # def preprocess_images(inputdirectory, mask_dir, outputdirectory, outputfile, verbose = False, use_cache=True):
-def preprocess_images(uuid, uploaded_image : UploadedImage, output_directory :str) -> tuple[str, str]:
+def preprocess_images(uuid, uploaded_image : UploadedImage, output_dir :Path) -> tuple[str, str]:
+    """
+        Most commented lines are from the old code base. Have kept until we have the entire product working
+    """
     # constants, easily can be changed 
-    PRE_PROCESS_FOLDER_NAME = "preprocessed_images"
-    print("output_directory", output_directory)
+    print("output_directory", output_dir)
 
     # Creates csv file and writes in first 2 columns ImageId and EncodedRLE for each image
     CSV_NAME = 'preprocessed_images_list.csv'
-    preprocessed_image_list_path = os.path.join(output_directory, CSV_NAME)
+    preprocessed_image_list_path = Path(output_dir, CSV_NAME)
     preprocessed_image_list = open(preprocessed_image_list_path, "w")
     preprocessed_image_list.write("ImageId, EncodedRLE" + "\n")
     preprocessed_image_list.close()
     
     #converts windows file path to linux path and joins 
-    image_path = os.path.join(MEDIA_ROOT, str(uploaded_image.file_location).replace("/", "\\"))
+    image_path = Path(MEDIA_ROOT, str(uploaded_image.file_location)) #.replace("/", "\\")
     f = DVFile(image_path)
     # gets raw image from uploaded dv file
     image = f.asarray()[0]
@@ -64,8 +69,12 @@ def preprocess_images(uuid, uploaded_image : UploadedImage, output_directory :st
     # os.makedirs(outputdirectory + imagename)
     # os.makedirs(outputdirectory + imagename + "/images/")
     rgb_image = Image.fromarray(rgb_image)
-    pre_process_dir_path = os.path.join(output_directory, PRE_PROCESS_FOLDER_NAME)
-    os.makedirs(pre_process_dir_path)
+    # pre_process_dir_path = os.path.join(output_directory, PRE_PROCESS_FOLDER_NAME)
+    pre_process_dir_path = Path(output_dir / PRE_PROCESS_FOLDER_NAME)
+    # makes dir if it already doesn't exist
+    pre_process_dir_path.mkdir(parents=True, exist_ok=True)
+    # if not pre_process_dir_path.is_dir():
+    # os.makedirs(pre_process_dir_path)
     image_name = uploaded_image.name.split(".")[0] + ".tif"
     pre_process_image_path = os.path.join(pre_process_dir_path, image_name)
     rgb_image.save(pre_process_image_path)

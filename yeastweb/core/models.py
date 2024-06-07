@@ -3,34 +3,28 @@ from django.db import models
 # https://docs.djangoproject.com/en/5.0/topics/forms/modelforms/#django.forms.ModelForm
 from django.forms import ModelForm
 from functools import partial
-import os
-
-# helper method to 
-
-
-# # 
-# def upload_to_root(new_file_name :str):
-#     return partial(_update_filename, new_file_name=new_file_name)
-
-# def upload_to_directory(new_file_name :str, directory_name :str):
-#     return partial(_update_filename, new_file_name=new_file_name)
 
 class UploadedImage(models.Model):
-    def update_to(instance, filename):
+    # stores image in its own uuid folder along with its name
+    def upload_to(instance, filename):
         uuid = instance.uuid
         name = instance.name
         # file cannot have . in its
         file_extension = '.' + filename.split('.')[-1]
         return f'{uuid}/{name}{file_extension}'
-
     name = models.TextField()
-    uuid = models.UUIDField(primary_key=False, default=uuid.uuid4, editable=False)
-    file_location = models.FileField(upload_to=update_to)
+    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    file_location = models.FileField(upload_to=upload_to)
     def __str__(self):
         return self.name
-    
+
+class DVLayerTifPreview(models.Model):
+    wavelength = models.CharField(max_length=30)
+    uploaded_image_uuid = models.ForeignKey(UploadedImage, on_delete=models.CASCADE)
+    # since the tif is already generated, manually set to path 
+    file_location = models.ImageField()
 # class PreprocessImage(models.Model):
-#     uploaded_image_id = models.OneToOneField(UploadedImage, on_delete = models.CASCADE, primary_key = True)
+#     uploaded_image_uuid = models.OneToOneField(UploadedImage, on_delete = models.CASCADE, primary_key = True)
 #     file_location = models.FileField(upload_to=update_to)
     
 

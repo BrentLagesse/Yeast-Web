@@ -1,18 +1,11 @@
 <h1>Pre-process</h1>
 <ul>
-  <h2>{{ image.name }}</h2>
-  <p>{{ image.uuid }}</p>
-  <img src="{{ image.cover.url}}" alt="{{ image.name }}" />
-
   <form action="" method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <input type="submit" value="Start Analysis" />
   </form>
-  <!-- <form action="" method="put" enctype="multipart/form-data">
-    {% csrf_token %}
-    <input type="submit" value="Run predict_images" />
-  </form>
-  <form action="" method="delete" enctype="multipart/form-data">
-    {% csrf_token %}
-    <input type="submit" value="Run convert_to_image" /> -->
+  {% for image in images %}
+  <h2>{{ image.wavelength }}</h2>
+  <img src="{{ image.file_location.url}}" />
+  {% endfor %}
 </ul>

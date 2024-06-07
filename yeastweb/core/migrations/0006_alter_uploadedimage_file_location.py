@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="uploadedimage",
             name="file_location",
-            field=models.FileField(upload_to=core.models.UploadedImage.update_to),
+            field=models.FileField(upload_to=core.models.UploadedImage.upload_to),
         ),
     ]
