@@ -5,6 +5,7 @@
 __pycache__
 db.sqlite3
 media
+yeast_web
 
 # neural network
 deepretina_final.h5
