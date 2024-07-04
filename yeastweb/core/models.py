@@ -15,8 +15,9 @@ class UploadedImage(models.Model):
     name = models.TextField()
     uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     file_location = models.FileField(upload_to=upload_to)
+
     def __str__(self):
-        return self.name
+        return 'Name: ' + self.name + ' UUID: ' + str(self.uuid)
 
 class DVLayerTifPreview(models.Model):
     wavelength = models.CharField(max_length=30)

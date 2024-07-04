@@ -1,4 +1,5 @@
 from django.http import HttpResponse
+from django.shortcuts import redirect
 from pathlib import Path
 from PIL import Image
 from yeastweb.settings import MEDIA_ROOT
@@ -89,8 +90,8 @@ def convert_to_image(request, uuid):
 
         if verbose:
             print ("Completed in", time.time() - start_time)
-            
-    return HttpResponse("Conversion complete")
+
+    return redirect(f'/image/{uuid}/segment/')
     
 '''Converts masks to be ImageJ compatible'''
 def convert_to_imagej(request, uuid):
