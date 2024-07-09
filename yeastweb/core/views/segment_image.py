@@ -42,8 +42,8 @@ def segment_image(request, uuid):
 
     # Need to grab the original DV file
     # Load the original raw image and rescale its intensity values
-    path = str(Path(MEDIA_ROOT)) + '/' + str(uuid) + '/' + DV_Name + '.dv'
-    f = DVFile(path)
+    DV_path = str(Path(MEDIA_ROOT)) + '/' + str(uuid) + '/' + DV_Name + '.dv'
+    f = DVFile(DV_path)
     im = f.asarray()
     image = Image.fromarray(im[0])
     image = skimage.exposure.rescale_intensity(np.float32(image), out_range=(0, 1))
@@ -127,7 +127,7 @@ def segment_image(request, uuid):
             # mcherry_image = np.array(Image.open(mcherry_dir + mcherry_image_name))
 
             # Which file are we trying to find here?
-            f = DVFile(path)
+            f = DVFile(DV_path)
             mcherry_image = f.asarray()[3]
 
             # mcherry_image = skimage.exposure.rescale_intensity(mcherry_np.float32(image), out_range=(0, 1))
@@ -281,7 +281,7 @@ def segment_image(request, uuid):
             seg[np.where(seg == x)] = i + 1
 
         # now seg has the updated masks, so lets save them so we don't have to do this every time
-        outputdirectory = Path(MEDIA_ROOT) / str(uuid) / "output"
+        outputdirectory = str(Path(MEDIA_ROOT)) + '/' + str(uuid) + '/' + 'output/'
         seg_image = Image.fromarray(seg)
         seg_image.save(str(outputdirectory) + "\\cellpairs.tif")
     else:   #g1 arrested
@@ -305,7 +305,7 @@ def segment_image(request, uuid):
     #if os.path.isdir(to_open):
     #    continue
     #image = np.array(Image.open(to_open))
-    f = DVFile(path)
+    f = DVFile(DV_path)
     im = f.asarray()
     image = Image.fromarray(im[0])
     image = skimage.exposure.rescale_intensity(np.float32(image), out_range=(0, 1))
@@ -364,10 +364,10 @@ def segment_image(request, uuid):
     # This is where we overlay what we learned in the DIC onto the other images
     
     #filter_dir = input_dir  + base_image_name + '_PRJ_TIFFS/'
-    segmented_directory = str(Path(MEDIA_ROOT)) + '/' + str(uuid) + '/segmented'
+    segmented_directory = str(Path(MEDIA_ROOT)) + '/' + str(uuid) + '/segmented/'
     os.makedirs(segmented_directory)
-    f = DVFile(path)
-    for image_num in range(1,3):
+    f = DVFile(DV_path)
+    for image_num in range(4):
         # images = os.path.split(full_path)[1]  # we start in separate directories, but need to end up in the same one
         # # don't overlay if it isn't the right base image
         # if base_image_name not in images:
@@ -390,6 +390,9 @@ def segment_image(request, uuid):
             image = np.expand_dims(image, axis=-1)
             image = np.tile(image, 3)
 
+        # Trying to figure out why we're only seeing one wave length represented
+        # plt.imsave(str(Path(MEDIA_ROOT)) + '/' + str(uuid) + '/' + DV_Name + '-' + str(image_num) + '.tif', image, dpi=600, format='TIFF')
+
         outlines = np.zeros(seg.shape)
         # Iterate over each integer in the segmentation and save the outline of each cell onto the outline file
         for i in range(1, int(np.max(seg) + 1)):
@@ -408,8 +411,8 @@ def segment_image(request, uuid):
             #no_outline_image = tif_image.split('.')[0] + '-' + str(i) + '-no_outline.tif'
             # cell_tif_image = images.split('.')[0] + '-' + str(i) + '.tif'
             # no_outline_image = images.split('.')[0] + '-' + str(i) + '-no_outline.tif'
-            cell_tif_image = DV_Name + '-' + str(i) + '.tif'
-            no_outline_image = DV_Name + '-' + str(i) + '-no_outline.tif'
+            cell_tif_image = DV_Name + '-' + str(image_num) + '-' + str(i) + '.tif'
+            no_outline_image = DV_Name + '-' + str(image_num) + '-'  + str(i) + '-no_outline.tif'
 
             a = np.where(seg == i)   # somethin bad is happening when i = 4 on my tests
             min_x = max(np.min(a[0]) - 1, 0)
@@ -421,7 +424,6 @@ def segment_image(request, uuid):
             # save this to use later when I want to calculate cellular intensity
 
             #convert from absolute location to relative location for later use
-
 
             if not os.path.exists(str(outputdirectory) + str(i) + '.outline')  or not use_cache:
                 with open(str(outputdirectory) + str(i) + '.outline', 'w') as csvfile:
@@ -445,4 +447,4 @@ def segment_image(request, uuid):
     #    display_cell(k, v[0])
     #else: show error message'''
 
-    return HttpResponse("Congrats bitch")
+    return HttpResponse("Congrats")
