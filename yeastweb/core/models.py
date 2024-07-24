@@ -1,4 +1,5 @@
 import uuid
+import json
 from django.db import models
 # https://docs.djangoproject.com/en/5.0/topics/forms/modelforms/#django.forms.ModelForm
 from django.forms import ModelForm
@@ -18,6 +19,16 @@ class UploadedImage(models.Model):
 
     def __str__(self):
         return 'Name: ' + self.name + ' UUID: ' + str(self.uuid)
+    
+class SegmentedImage(models.Model):
+    UUID = models.UUIDField(primary_key=True)
+    ImagePath = models.FilePathField()
+    CellPairPrefix = models.FilePathField()
+    NumCells = models.IntegerField()
+
+    def __str__(self):
+        return 'UUID: ' + self.UUID + ' Path: ' + self.ImagePath + ' Prefix: ' + self.CellPairPrefix + ' Number of Cells: ' + self.NumCells
+
 
 class DVLayerTifPreview(models.Model):
     wavelength = models.CharField(max_length=30)

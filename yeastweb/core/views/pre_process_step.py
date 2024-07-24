@@ -25,8 +25,6 @@ def pre_process_step(request, uuid):
         preprocess_image_path, preprocessed_image_list_path = preprocess_images(uuid, image, output_directory)
         tif_to_jpg(Path(preprocess_image_path), Path(output_directory))
         rle_file = predict_images(preprocess_image_path, preprocessed_image_list_path, output_directory)
-        # return HttpResponse("Analysis completed")
-        # I think we want to return an HttpRedirect here and redirect to a convertToImage url
         return redirect(f'/image/{uuid}/convert/')
     else:
         return TemplateResponse(request, "pre-process.html", {'images' : preview_images})

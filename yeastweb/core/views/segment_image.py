@@ -7,14 +7,14 @@ import numpy as np
 import os
 import skimage
 
-from core.models import UploadedImage
+from core.models import UploadedImage, SegmentedImage
 from cv2_rolling_ball import subtract_background_rolling_ball
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from mrc import DVFile
 from pathlib import Path
 from PIL import Image
-from yeastweb.settings import MEDIA_ROOT
+from yeastweb.settings import MEDIA_ROOT, MEDIA_URL
 
 def get_neighbor_count(seg_image, center, radius=1, loss=0):
         #TODO:  account for loss as distance gets larger
@@ -439,6 +439,13 @@ def segment_image(request, uuid):
             if not os.path.exists(segmented_directory + no_outline_image) or not use_cache:  # don't redo things we already have
                 plt.imsave(segmented_directory + no_outline_image, not_outlined_image, dpi=600, format='TIFF')
                 plt.clf()
+
+        instance = SegmentedImage(UUID = uuid, 
+                                  ImagePath = (MEDIA_URL  + '/' + str(uuid) + '/output/' + DV_Name + '.jpg'), 
+                                  CellPairPrefix = (MEDIA_URL +'/' + str(uuid) + '/segmented/' + DV_Name),
+                                  NumCells = int(np.max(seg) + 1))
+        instance.save()
+        print(instance)
 
     # if the image_dict is empty, then we didn't get anything interesting from the directory
     #print("image_dict123", image_dict)
