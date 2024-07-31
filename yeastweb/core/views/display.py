@@ -1,4 +1,4 @@
-from core.models import UploadedImage
+from core.models import UploadedImage, SegmentedImage
 from django.shortcuts import render
 from django.template.response import TemplateResponse
 from pathlib import Path
@@ -10,5 +10,7 @@ def display_cell(request, uuid):
     # We need to send the outlined image, and all of the segmented images to the html template
     Image_Name = UploadedImage.objects.get(pk=uuid).name
     full_outlined =  str(Path(MEDIA_URL)) + '\\' + str(uuid) + '\\output\\' + Image_Name + '.png'
-    content = {'main_image_path' : full_outlined}
+    CellImage = SegmentedImage.objects.get(pk=uuid)
+
+    content = {'MainImagePath' : CellImage.ImagePath, 'NumberOfCells' : CellImage.NumCells}
     return TemplateResponse(request, "display_cell.html", content)

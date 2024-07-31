@@ -441,11 +441,11 @@ def segment_image(request, uuid):
                 plt.clf()
 
         instance = SegmentedImage(UUID = uuid, 
-                                  ImagePath = (MEDIA_URL  + '/' + str(uuid) + '/output/' + DV_Name + '.jpg'), 
+                                  ImagePath = (MEDIA_URL  + '/' + str(uuid) + '/output/' + DV_Name + '.png'), 
                                   CellPairPrefix = (MEDIA_URL +'/' + str(uuid) + '/segmented/' + DV_Name),
                                   NumCells = int(np.max(seg) + 1))
         instance.save()
-        print(instance)
+        #print(instance)
 
     # if the image_dict is empty, then we didn't get anything interesting from the directory
     #print("image_dict123", image_dict)

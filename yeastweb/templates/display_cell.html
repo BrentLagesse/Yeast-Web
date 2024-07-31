@@ -1,2 +1,21 @@
+
+
 <h1>Display Cell</h1>
-<img src="{{main_image_path}}" width="500" height="500">
+<img src="{{MainImagePath}}" width="500" height="500" id="MainImage">
+<button onclick="increment">Next Cell</button>
+
+<script>
+    let max = "{{NumberOfCells}}"
+    let current = 1
+    let regex = /\d(?:[,\d].\d+|[,\d])/
+    let MainImage = document.getElementById("MainImage")
+    console.log(MainImage.src)
+    console.log(MainImage)
+    let PairInfo = MainImage.src.match(regex)
+    
+    function increment(max) {
+        console.log(max)
+        console.log(PairInfo)
+    }
+    
+</script>

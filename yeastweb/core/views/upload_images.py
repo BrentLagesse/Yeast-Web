@@ -35,7 +35,6 @@ def upload_images(request):
             # form.save()
             generate_tif_preview_images(stored_dv_path, pre_processed_dir, instance, 4)
             return redirect(f'/image/{image_uuid}/')
-            return HttpResponse("Image successfully uploaded")
     else:
         form = UploadImageForm()
     form = UploadImageForm()
