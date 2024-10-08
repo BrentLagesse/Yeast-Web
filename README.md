@@ -17,7 +17,7 @@ You need to make sure git, virtualenv, and python3 (currently using 3.11.5) are 
 ###########################################################################################################################################################
 
 Running on Windows
-Having the same assumptions that Python(3.11.5) is installed in the machine
+Python version  **NEEDS TO BE 3.11.5** or else it will not work
 
 1. git clone https://github.com/BrentLagesse/Yeast-Web.git #Clone github Repo using
 
