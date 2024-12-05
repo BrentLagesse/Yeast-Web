@@ -7,7 +7,7 @@ import numpy as np
 import os
 import skimage
 
-from core.models import UploadedImage, SegmentedImage
+from core.models import UploadedImage, SegmentedImage, CellStatistics
 from cv2_rolling_ball import subtract_background_rolling_ball
 from django.http import HttpResponse
 from django.shortcuts import redirect
@@ -16,15 +16,118 @@ from pathlib import Path
 from PIL import Image
 from yeastweb.settings import MEDIA_ROOT, MEDIA_URL
 
-def get_neighbor_count(seg_image, center, radius=1, loss=0):
-        #TODO:  account for loss as distance gets larger
-        neighbor_list = list()
-        neighbors = seg_image[center[0] - radius:center[0] + radius + 1, center[1] - radius:center[1] + radius + 1]
-        for x, row in enumerate(neighbors):
-            for y, val in enumerate(row):
-                if (x, y) != (radius, radius) and int(val) != 0 and int(val) != int(seg_image[center[0], center[1]]):
+from scipy.spatial.distance import euclidean  
+from collections import defaultdict
+
+import cv2
+import numpy as np
+from scipy.spatial.distance import euclidean
+from cv2_rolling_ball import subtract_background_rolling_ball
+
+import logging
+import time
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("debug.log"),
+        logging.StreamHandler()
+    ]
+)
+
+def calculate_cell_statistics(seg, gfp_channel, nucleus_channel, cell_number, kernel_size, deviation, mcherry_line_width):
+    """Calculates all necessary statistics for a single cell with detailed logging for debugging."""
+    start_time = time.time()
+    logging.debug(f"Starting statistics calculation for cell {cell_number}.")
+    
+    # Create mask and find contours
+    cell_mask = (seg == cell_number).astype(np.uint8) * 255
+    contours, _ = cv2.findContours(cell_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    logging.debug(f"Found {len(contours)} contours for cell {cell_number}.")
+    
+    if not contours:
+        logging.warning(f"No contours found for cell {cell_number}.")
+        return {
+            'distance': 0,
+            'line_gfp_intensity': 0,
+            'nucleus_intensity_sum': 0,
+            'cellular_intensity_sum': 0
+        }
+
+    # Identify the largest contour for the cell outline
+    cell_contour = max(contours, key=cv2.contourArea)
+    mask_contour = np.zeros_like(gfp_channel, dtype=np.uint8)
+    cv2.drawContours(mask_contour, [cell_contour], -1, 255, -1)
+    logging.debug(f"Largest contour drawn for cell {cell_number}.")
+
+    # Convert nucleus image to grayscale if necessary and apply Gaussian blur and background subtraction
+    start_preprocess = time.time()
+    nucleus_image_gray = cv2.cvtColor(nucleus_channel, cv2.COLOR_RGB2GRAY) if len(nucleus_channel.shape) == 3 else nucleus_channel
+    nucleus_image_gray = cv2.GaussianBlur(nucleus_image_gray, (kernel_size, kernel_size), deviation)
+    nucleus_image_gray, _ = subtract_background_rolling_ball(nucleus_image_gray, 50, light_background=False)
+    logging.debug(f"Nucleus preprocessing completed for cell {cell_number} in {time.time() - start_preprocess:.2f} seconds.")
+
+    # Calculate mCherry line intensity
+    mcherry_line_intensity_sum = 0
+    if len(contours) >= 2:
+        c1, c2 = sorted(contours, key=cv2.contourArea, reverse=True)[:2]
+        M1, M2 = cv2.moments(c1), cv2.moments(c2)
+        
+        if M1["m00"] != 0 and M2["m00"] != 0:
+            c1x, c1y = int(M1["m10"] / M1["m00"]), int(M1["m01"] / M1["m00"])
+            c2x, c2y = int(M2["m10"] / M2["m00"]), int(M2["m01"] / M2["m00"])
+            mcherry_line_mask = np.zeros_like(nucleus_image_gray, dtype=np.uint8)
+            cv2.line(mcherry_line_mask, (c1x, c1y), (c2x, c2y), 255, mcherry_line_width)
+            mcherry_line_intensity_sum = np.sum(nucleus_image_gray[mcherry_line_mask == 255])
+            logging.debug(f"Calculated mCherry line intensity for cell {cell_number}.")
+
+    # Calculate nucleus and cellular intensities
+    nucleus_no_bg, _ = subtract_background_rolling_ball(nucleus_image_gray, 50, light_background=False)
+    nucleus_intensity_sum = np.sum(nucleus_no_bg[mask_contour == 255])
+    cellular_intensity_sum = np.sum(gfp_channel[mask_contour == 255])
+    logging.debug(f"Nucleus intensity sum: {nucleus_intensity_sum}, Cellular intensity sum: {cellular_intensity_sum} for cell {cell_number}.")
+
+    # Calculate distance to the nearest cell
+    start_distance = time.time()
+    M = cv2.moments(cell_contour)
+    centroid_x = int(M["m10"] / M["m00"]) if M["m00"] != 0 else 0
+    centroid_y = int(M["m01"] / M["m00"]) if M["m00"] != 0 else 0
+    distances = [
+        euclidean((centroid_x, centroid_y), (int(np.mean(np.where(seg == i)[0])), int(np.mean(np.where(seg == i)[1]))))
+        for i in range(1, int(np.max(seg)) + 1) if i != cell_number
+    ]
+    distance = min(distances) if distances else 0
+    logging.debug(f"Calculated distance: {distance} for cell {cell_number} in {time.time() - start_distance:.2f} seconds.")
+
+    # Total execution time
+    logging.info(f"Finished calculating statistics for cell {cell_number} in {time.time() - start_time:.2f} seconds.")
+    
+    return {
+        'distance': distance,
+        'line_gfp_intensity': mcherry_line_intensity_sum,
+        'nucleus_intensity_sum': nucleus_intensity_sum,
+        'cellular_intensity_sum': cellular_intensity_sum
+    }
+
+def get_neighbor_count(seg_image, center, radius=3, distance_loss=0.5):
+    """
+    Counts neighboring cells around the `center` point in `seg_image` within a specified `radius`.
+    Applies a loss factor as the distance from the center increases.
+    """
+    neighbor_list = []
+    neighbors = seg_image[center[0] - radius:center[0] + radius + 1, center[1] - radius:center[1] + radius + 1]
+    
+    for x, row in enumerate(neighbors):
+        for y, val in enumerate(row):
+            if (x, y) != (radius, radius) and int(val) != 0 and int(val) != int(seg_image[center[0], center[1]]):
+                distance = math.sqrt((x - radius) ** 2 + (y - radius) ** 2)
+                # Apply distance-based loss if necessary
+                if distance <= radius * distance_loss:
                     neighbor_list.append(val)
-        return neighbor_list
+                    
+    return neighbor_list
 
 '''Creates image "segments" from the desired image'''
 def segment_image(request, uuids):
@@ -38,6 +141,11 @@ def segment_image(request, uuids):
     seg = None
     use_cache = True
 
+    # Configuations for statistic calculation
+    kernel_size = 3
+    deviation = 1
+    mcherry_line_width = 1
+
     # We're gonna use image_dict to store all of the cell pairs (i think?)
     for uuid in uuid_list:
         DV_Name = UploadedImage.objects.get(pk=uuid).name
@@ -49,6 +157,12 @@ def segment_image(request, uuids):
         DV_path = str(Path(MEDIA_ROOT)) + '/' + str(uuid) + '/' + DV_Name + '.dv'
         f = DVFile(DV_path)
         im = f.asarray()
+
+        gfp_channel = im[0] # subject to change 
+        nucleus_channel = im[0] # subject to change 
+
+        cell_stats = {}
+
         image = Image.fromarray(im[0])
         image = skimage.exposure.rescale_intensity(np.float32(image), out_range=(0, 1))
         image = np.round(image * 255).astype(np.uint8)
@@ -462,7 +576,27 @@ def segment_image(request, uuids):
                                     CellPairPrefix=(MEDIA_URL + str(uuid) + '/segmented/cell_'),
                                     NumCells = int(np.max(seg) + 1))
             instance.save()
-            #print(instance)
+
+        # Calculate statistics for each cell only once after the loop
+        for cell_number in range(1, int(np.max(seg)) + 1):
+            print(f"Calculating statistics for cell {cell_number} in image {DV_Name} (UUID: {uuid})")
+            
+            # Call the unified function to calculate all statistics with direct parameter values
+            stats = calculate_cell_statistics(
+                seg, gfp_channel, nucleus_channel, cell_number,
+                kernel_size=kernel_size, deviation=deviation, mcherry_line_width=mcherry_line_width
+            )
+
+            # Store the statistics in the dictionary
+            cell_stats[cell_number] = stats
+
+        # Save all statistics for each cell once after loop and statistics calculation
+        for cell_number, stats in cell_stats.items():
+            CellStatistics.objects.update_or_create(
+                segmented_image=instance,
+                cell_id=cell_number,
+                defaults=stats
+            )
 
         # if the image_dict is empty, then we didn't get anything interesting from the directory
         #print("image_dict123", image_dict)
@@ -471,9 +605,6 @@ def segment_image(request, uuids):
         #    print("displaycell",k,v[0])
         #    display_cell(k, v[0])
         #else: show error message'''
-    
-    # Convert UUID list to a comma-separated string
-    uuid_string = ','.join(uuid_list)
 
-    return redirect(f'/image/{uuid_string}/display/')
+    return redirect(f'/image/{uuids}/display/')
     return HttpResponse("Congrats")

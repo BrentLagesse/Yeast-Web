@@ -49,7 +49,7 @@
         .cell-images-row {
             display: flex;
             align-items: stretch; /* Ensure all items have the same height */
-            justify-content: flex-start;
+            justify-content: center;
             width: 100%;
             max-width: 1000px;
             gap: 20px; /* Adds even space between items */
@@ -63,6 +63,7 @@
             justify-content: center;
             height: 100%;  /* Stretch height to match images */
             flex-shrink: 0;  /* Prevent Cell ID from shrinking */
+            padding-top: 120px;
         }
 
         /* Cell image container */
@@ -140,7 +141,7 @@
 
     <!-- Cell Images Row with Cell ID on Same Line -->
     <div class="cell-images-row">
-        <div class="cell-id">Cell ID: <span id="cellID">1</span></div>
+        <div class="cell-id">Cell ID:<span id="cellID" style="margin-left: 4px;">1</span></div>
 
         <!-- DIC cell image -->
         <div class="cell-column">
@@ -159,8 +160,8 @@
             <div class="cell-label mcherry">mCherry</div>
             <img id="cellImage3" class="cell-image" src="">
             <div class="info-box">
-                <div class="tight-info">Distance: {{ distance }}</div>
-                <div class="tight-info">Line GFP Intensity: {{ line_gfp_intensity }}</div>
+                <div class="tight-info">Distance: <span id="distance"></span></div>
+                <div class="tight-info">Line GFP Intensity: <span id="lineGFPIntensity"></span></div>
             </div>
         </div>
 
@@ -169,8 +170,8 @@
             <div class="cell-label gfp">GFP</div>
             <img id="cellImage4" class="cell-image" src="">
             <div class="info-box">
-                <div class="tight-info">Nucleus Intensity Sum: {{ nucleus_intensity_sum }}</div>
-                <div class="tight-info">Cellular Intensity Sum: {{ cellular_intensity_sum }}</div>
+                <div class="tight-info">Nucleus Intensity Sum: <span id="nucleusIntensitySum"></span></div>
+                <div class="tight-info">Cellular Intensity Sum: <span id="cellularIntensitySum"></span></div>
             </div>
         </div>
     </div>
@@ -187,61 +188,69 @@
         let currentFileIndex = 0;  // Initialize the first file
         let currentCellNumber = 1;
         let maxCells;
-
+    
         // Load the first file on page load
         window.onload = function() {
             loadFile(currentFileIndex);  // Load the first file
         };
-
+    
         // Function to load a file (UUID) and display its images
         function loadFile(fileIndex) {
             const fileUUID = fileUUIDs[fileIndex];
             const fileData = filesData[fileUUID];
-
+    
             // Update the main image and cell images
             document.getElementById("mainImage").src = fileData.MainImagePath;
             document.getElementById("imageTitle").textContent = fileData.Image_Name;
-
+    
             // Load the first cell images for the current file
             maxCells = Number(fileData.NumberOfCells) - 1;
             currentCellNumber = 1;  // Reset to the first cell when changing files
-            updateCellImages(fileData.CellPairImages);
+            updateCellImages(fileData.CellPairImages, fileData.Statistics);
         }
-
-        // Function to update the images for the current cell
-        function updateCellImages(cellPairImages) {
+    
+        // Function to update the images and statistics for the current cell
+        function updateCellImages(cellPairImages, statistics) {
             const imageUrls = cellPairImages[currentCellNumber];
             document.getElementById("cellImage1").src = imageUrls[0];
             document.getElementById("cellImage2").src = imageUrls[1];
             document.getElementById("cellImage3").src = imageUrls[2];
             document.getElementById("cellImage4").src = imageUrls[3];
             document.getElementById("cellID").textContent = currentCellNumber;
+    
+            // Update the statistics for the current cell
+            const cellStats = statistics[currentCellNumber];
+            document.getElementById("distance").textContent = cellStats ? cellStats.distance : "N/A";
+            document.getElementById("lineGFPIntensity").textContent = cellStats ? cellStats.line_gfp_intensity : "N/A";
+            document.getElementById("nucleusIntensitySum").textContent = cellStats ? cellStats.nucleus_intensity_sum : "N/A";
+            document.getElementById("cellularIntensitySum").textContent = cellStats ? cellStats.cellular_intensity_sum : "N/A";
         }
-
+    
         // Function to load the next main image (file) without page reload
         function nextFile() {
             currentFileIndex = (currentFileIndex + 1) % fileUUIDs.length;
             loadFile(currentFileIndex);  // Dynamically update images for the next file
         }
-
+    
         // Function to load the previous main image (file) without page reload
         function previousFile() {
             currentFileIndex = (currentFileIndex - 1 + fileUUIDs.length) % fileUUIDs.length;
             loadFile(currentFileIndex);  // Dynamically update images for the previous file
         }
-
+    
         // Function to load the next set of cell images without page reload
         function nextCell() {
             currentCellNumber = (currentCellNumber % maxCells) + 1;
-            updateCellImages(filesData[fileUUIDs[currentFileIndex]].CellPairImages);
+            const fileData = filesData[fileUUIDs[currentFileIndex]];
+            updateCellImages(fileData.CellPairImages, fileData.Statistics);
         }
-
+    
         // Function to load the previous set of cell images without page reload
         function previousCell() {
             currentCellNumber = (currentCellNumber - 1 > 0) ? (currentCellNumber - 1) : maxCells;
-            updateCellImages(filesData[fileUUIDs[currentFileIndex]].CellPairImages);
+            const fileData = filesData[fileUUIDs[currentFileIndex]];
+            updateCellImages(fileData.CellPairImages, fileData.Statistics);
         }
-
     </script>
 
 </body>
