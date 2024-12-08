@@ -95,10 +95,11 @@
         document.getElementById('preprocessForm').addEventListener('submit', function (event) {
             const startButton = document.getElementById('startAnalysisButton');
             startButton.disabled = true; 
-            button.style.pointerEvents = 'none'; 
-            button.style.cursor = 'not-allowed'; 
             startButton.value = "Analyzing..."; 
             startButton.style.backgroundColor = '#0056b3'; 
+
+            startButton.style.pointerEvents = 'none'; 
+            startButton.style.cursor = 'not-allowed';
         });
 
 
