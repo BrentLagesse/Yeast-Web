@@ -35,6 +35,22 @@ class DVLayerTifPreview(models.Model):
     uploaded_image_uuid = models.ForeignKey(UploadedImage, on_delete=models.CASCADE)
     # since the tif is already generated, manually set to path 
     file_location = models.ImageField()
+
+class CellStatistics(models.Model):
+    segmented_image = models.ForeignKey(SegmentedImage, on_delete=models.CASCADE)
+    cell_id = models.IntegerField()
+    distance = models.FloatField()
+    line_gfp_intensity = models.FloatField()
+    nucleus_intensity_sum = models.FloatField()
+    cellular_intensity_sum = models.FloatField()
+
+    def __str__(self):
+        return f"Cell ID: {self.cell_id} - Dist: {self.distance}, Line GFP: {self.line_gfp_intensity}"
+
+
+
+
+
 # class PreprocessImage(models.Model):
 #     uploaded_image_uuid = models.OneToOneField(UploadedImage, on_delete = models.CASCADE, primary_key = True)
 #     file_location = models.FileField(upload_to=update_to)

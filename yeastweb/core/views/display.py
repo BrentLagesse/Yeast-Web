@@ -1,4 +1,4 @@
-from core.models import UploadedImage, SegmentedImage
+from core.models import UploadedImage, SegmentedImage, CellStatistics
 from django.shortcuts import render
 from pathlib import Path
 from yeastweb.settings import MEDIA_URL
@@ -28,18 +28,32 @@ def display_cell(request, uuids):
 
             # Store the images for each cell across 4 channels
             images = {}
+            statistics = {}
             for i in range(1, cell_image.NumCells + 1):
                 images[str(i)] = []
                 for channel in range(4):
                     image_url = f"{MEDIA_URL}{uuid}/segmented/{image_name_stem}-{channel}-{i}.png"
                     images[str(i)].append(image_url)
+                
+                # Retrieve statistics for the cell
+                try:
+                    cell_stat = CellStatistics.objects.get(segmented_image=cell_image, cell_id=i)
+                    statistics[str(i)] = {
+                        'distance': cell_stat.distance,
+                        'line_gfp_intensity': cell_stat.line_gfp_intensity,
+                        'nucleus_intensity_sum': cell_stat.nucleus_intensity_sum,
+                        'cellular_intensity_sum': cell_stat.cellular_intensity_sum,
+                    }
+                except CellStatistics.DoesNotExist:
+                    statistics[str(i)] = None  # In case statistics are missing for a cell
 
-            # Store all image details for this UUID
+            # Store all image details and statistics for this UUID
             all_files_data[str(uuid)] = {
                 'MainImagePath': full_outlined,
                 'NumberOfCells': cell_image.NumCells,
                 'CellPairImages': images,
-                'Image_Name': image_name
+                'Image_Name': image_name,
+                'Statistics': statistics  # Add the statistics data
             }
 
         except UploadedImage.DoesNotExist:
