@@ -15,6 +15,7 @@ from mrc import DVFile
 from pathlib import Path
 from PIL import Image
 from yeastweb.settings import MEDIA_ROOT, MEDIA_URL
+from core.config import input_dir, CHANNEL_CONFIG
 
 from scipy.spatial.distance import euclidean  
 from collections import defaultdict
@@ -160,6 +161,7 @@ def get_stats(cp, conf):
             bestArea_mcherry[1] = area
             bestContours_mcherry[1] = i
 
+    # Open the debug images using the legacy getters
     edit_im = Image.open(output_dir + '/segmented/' + cp.get_mCherry(use_id=True))
     edit_im_GFP = Image.open(output_dir + '/segmented/' + cp.get_GFP(use_id=True))
     edit_testimg = np.array(edit_im)
@@ -255,7 +257,7 @@ def get_stats(cp, conf):
 
     print("only 1 contour found")
 
-    # Use white contour
+    # Use white contour for both images (mCherry and GFP)
     cv2.drawContours(edit_testimg, [best_contour], 0, (255, 255, 255), 1)
     cv2.drawContours(edit_GFP_img, [best_contour], 0, (255, 255, 255), 1)
 
@@ -355,9 +357,6 @@ def segment_image(request, uuids):
         f = DVFile(DV_path)
         im = f.asarray()
 
-        gfp_channel = im[0] # subject to change 
-        nucleus_channel = im[0] # subject to change 
-
         cell_stats = {}
 
         image = Image.fromarray(im[0])
@@ -443,7 +442,7 @@ def segment_image(request, uuids):
 
                 # Which file are we trying to find here?
                 f = DVFile(DV_path)
-                mcherry_image = f.asarray()[3]
+                mcherry_image = f.asarray()[CHANNEL_CONFIG["mCherry"]]
 
                 # mcherry_image = skimage.exposure.rescale_intensity(mcherry_np.float32(image), out_range=(0, 1))
                 mcherry_image = np.round(mcherry_image * 255).astype(np.uint8)

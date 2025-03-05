@@ -4,8 +4,8 @@ from pathlib import Path
 from yeastweb.settings import MEDIA_URL
 import json
 import os
-
 from django.http import HttpResponse
+from core.config import CHANNEL_CONFIG  # Import your channel configuration
 
 def display_cell(request, uuids):
     # Split the comma-separated UUIDs into a list
@@ -13,6 +13,10 @@ def display_cell(request, uuids):
 
     # Dictionary to store data for all files (UUIDs)
     all_files_data = {}
+
+    # Define the channel order that matches your HTML template:
+    # Order: DIC, DAPI, mCherry, GFP
+    channel_order = ["DIC", "DAPI", "mCherry", "GFP"]
 
     # Loop through each UUID and retrieve associated data
     for uuid in uuid_list:
@@ -26,20 +30,18 @@ def display_cell(request, uuids):
             # Get the segmented image details
             cell_image = SegmentedImage.objects.get(UUID=uuid)
 
-            # Store the images for each cell across 4 channels
+            # Build the images for each cell based on the dynamic channel configuration
             images = {}
             statistics = {}
             for i in range(1, cell_image.NumCells + 1):
                 images[str(i)] = []
-                for channel in range(4):
-                    # !! Remove this code once decided to replace old images with the lines/contoured images.
-                    # For channels 2 (mCherry) and 3 (GFP), use the debug image filenames.
-                    if channel == 2:
-                        image_url = f"{MEDIA_URL}{uuid}/segmented/{image_name_stem}-{i}-mCherry_debug.png"
-                    elif channel == 3:
-                        image_url = f"{MEDIA_URL}{uuid}/segmented/{image_name_stem}-{i}-GFP_debug.png"
+                for channel_name in channel_order:
+                    channel_index = CHANNEL_CONFIG.get(channel_name)
+                    # For mCherry and GFP, use the debug filename pattern
+                    if channel_name in ["mCherry", "GFP"]:
+                        image_url = f"{MEDIA_URL}{uuid}/segmented/{image_name_stem}-{i}-{channel_name}_debug.png"
                     else:
-                        image_url = f"{MEDIA_URL}{uuid}/segmented/{image_name_stem}-{channel}-{i}.png"
+                        image_url = f"{MEDIA_URL}{uuid}/segmented/{image_name_stem}-{channel_index}-{i}.png"
                     images[str(i)].append(image_url)
                 
                 # Retrieve statistics for the cell
@@ -60,7 +62,7 @@ def display_cell(request, uuids):
                 'NumberOfCells': cell_image.NumCells,
                 'CellPairImages': images,
                 'Image_Name': image_name,
-                'Statistics': statistics  # Add the statistics data
+                'Statistics': statistics
             }
 
         except UploadedImage.DoesNotExist:
