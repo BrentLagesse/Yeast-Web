@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Pre-process</title>
   <style>
+    .channel-chip.dic     { background-color: black; }
+    .channel-chip.dapi    { background-color: blue;  }
+    .channel-chip.mcherry { background-color: red;   }
+    .channel-chip.gfp     { background-color: green; }
+
     /* Overall page styling */
     body {
       margin: 0;
@@ -21,65 +26,77 @@
     /* SIDEBAR */
     .sidebar {
       position: relative;    
-      width: 240px;         
+      width: 400px;         
       background-color: #222; /* darker grey than main page */
-      transition: width 0.3s ease;
+      transition:
+        width 0.3s ease,
+        background-color 0.2s ease;    /* animate the color change too */
       overflow: hidden;      
       display: flex;
       flex-direction: column;
     }
     /* Collapsed state: set width to something minimal */
     .sidebar.collapsed {
-      width: 40px;
+      width: 60px;
+      background-color: #222;
     }
     /* Hide text + content when collapsed */
-    .sidebar.collapsed .sidebar-header h2 {
-      display: none;
-    }
+    .sidebar.collapsed .sidebar-header h2,
     .sidebar.collapsed .sidebar-content {
       display: none;
     }
 
-    /* Sidebar header: text on left, arrow in top-right corner */
+    /* Explicity cancel hover when it’s open (this is to prevent any unessesary flashing)*/
+    .sidebar:hover {
+      background-color: #222;
+    }
+
+    /* Only lighten when collapsed AND hovered */
+    .sidebar.collapsed:hover {
+      background-color: #2f2f2f;
+    }
+
+    /* Sidebar header */
     .sidebar-header {
-      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #333;
+      border-radius: 8px;
+      margin: 8px 10px;
       padding: 10px;
     }
     .sidebar-header h2 {
       margin: 0;
       font-size: 18px;
-      text-align: left; /* left align “Files” */
     }
 
-    /* Toggle button (arrows) in top-right corner */
+    /* Toggle button */
     .toggle-btn {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        background: none;
-        border: none;
-        color: #fff;
-        cursor: pointer;
-        font-size: 18px;
-        line-height: 24px;
+      position: static;
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 24px;
     }
     .toggle-btn:hover {
-        color: #ddd; /* darker white on hover */
+      color: #ddd;
     }
-    /* By default, show a left arrow (◀) for “collapse” */
     .toggle-btn::before {
-        content: '◀';
+      content: '◀';
     }
-    /* When sidebar is collapsed, show a right arrow (▶) for “expand” */
     .sidebar.collapsed .toggle-btn::before {
-        content: '▶';
+      content: '▶';
     }
 
     /* Sidebar content (file list) */
     .sidebar-content {
-      flex-grow: 1; /* let the list fill the remaining vertical space */
+      flex-grow: 1;
       overflow-y: auto;
-      padding-bottom: 10px; /* space at bottom */
+      padding-bottom: 10px;
     }
     .sidebar-content ul {
       list-style: none;
@@ -92,33 +109,56 @@
       border: none;
     }
 
-    /* Each file is in a "file-item" box */
+    /* Each file-item */
     .file-item {
-      margin: 8px 10px;         /* spacing around the box */
+      margin: 8px 10px;
       padding: 10px;
-      background-color: #333;   /* slightly lighter than #222 but darker than #444 */
+      background-color: #333;
       border-radius: 8px;
       cursor: pointer;
       transition: background-color 0.2s;
     }
-    /* Hover to a lighter blue (#3399ff) if not active */
     .file-item:hover {
       background-color: #3399ff;
     }
-
-    /* Active file highlight (darker blue) */
     .file-item.active {
-      background-color: #007bff; 
-      color: #fff; 
+      background-color: #007bff;
+      color: #fff;
     }
-    /* If it's active AND hovered, go to an even darker blue (#0056b3) */
     .file-item.active:hover {
       background-color: #0056b3;
     }
 
+    /* Channel pills */
+    .channel-bar {
+      display: flex;
+      gap: 4px;
+      margin-top: 6px;
+      flex-wrap: nowrap;
+      overflow-x: auto;      
+    }
+    .channel-chip {
+      background-color: #555;
+      color: #fff;
+      /* vertical padding only, remove horizontal padding */
+      padding: 6px 0;
+      border-radius: 4px;
+      cursor: grab;
+      user-select: none;
+
+      /* make each chip flexibly 1 share of the row */
+      flex: 1;
+      box-sizing: border-box;
+      text-align: center;
+    }
+
+    .channel-chip:active {
+      cursor: grabbing;
+    }
+
     /* MAIN CONTENT */
     .main-content {
-      flex-grow: 1;        
+      flex-grow: 1;
       padding: 20px;
       text-align: center;
     }
@@ -160,23 +200,30 @@
       margin-top: 10px;
     }
   </style>
+
+  <!-- Sortable.js for drag & drop -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 </head>
 <body>
   <div class="page-container">
     <!-- SIDEBAR -->
     <div class="sidebar" id="sidebar">
-      <!-- Header with “Files” text on the left, arrow top-right -->
       <div class="sidebar-header">
-        <h2>Files</h2>
+        <h2>Configuration</h2>
         <button class="toggle-btn" id="toggleSidebarBtn"></button>
       </div>
-
-      <!-- Sidebar content (file list) -->
       <div class="sidebar-content">
         <ul id="fileList">
           {% for file in file_list %}
           <li>
-            <div class="file-item" data-index="{{ forloop.counter0 }}">{{ file.name }}</div>
+            <div class="file-item" data-index="{{ forloop.counter0 }}" data-uuid="{{ file.uuid }}">
+              {{ file.name }}
+              <div class="channel-bar">
+                {% for channel in file.detected_channels %}
+                  <span class="channel-chip {{ channel|lower }}">{{ channel }}</span>
+                {% endfor %}
+              </div>
+            </div>
           </li>
           {% endfor %}
         </ul>
@@ -186,11 +233,11 @@
     <!-- MAIN CONTENT -->
     <div class="main-content">
       <h1>Pre-process: <span id="fileName">{{ file_name }}</span></h1>
-      
+
       <form action="" method="post" enctype="multipart/form-data" id="preprocessForm">
         {% csrf_token %}
         <input type="submit" value="Start Analysis" class="button" id="startAnalysisButton" />
-      </form>    
+      </form>
 
       <div class="image-container" id="imageContainer">
         {% for image in images %}
@@ -214,120 +261,126 @@
   </div>
 
   <script>
-    // Current index and total files
-    let currentFileIndex = parseInt('{{ current_file_index|default:0 }}', 10); 
+    // Current index & total
+    let currentFileIndex = parseInt('{{ current_file_index|default:0 }}', 10);
     const totalFiles = parseInt('{{ total_files|default:1 }}', 10);
 
-    // Sidebar references
+    // Sidebar elements
     const sidebar = document.getElementById('sidebar');
     const toggleBtn = document.getElementById('toggleSidebarBtn');
     const fileItems = document.querySelectorAll('.file-item');
 
-    // Highlight the active item in the sidebar
+    // Highlight active
     function updateSidebarActive() {
-      fileItems.forEach(item => item.classList.remove('active'));
-      const activeItem = document.querySelector(`.file-item[data-index="${currentFileIndex}"]`);
-      if (activeItem) {
-        activeItem.classList.add('active');
-      }
+      fileItems.forEach(i => i.classList.remove('active'));
+      const active = document.querySelector(`.file-item[data-index="${currentFileIndex}"]`);
+      if (active) active.classList.add('active');
     }
     updateSidebarActive();
 
-    // Click on a file in the sidebar to load that index
+    // Click file
     fileItems.forEach(item => {
-      item.addEventListener('click', function() {
-        const index = parseInt(this.getAttribute('data-index'), 10);
-        loadImage(index);
+      item.addEventListener('click', () => {
+        const idx = parseInt(item.dataset.index, 10);
+        loadImage(idx);
       });
     });
 
-    // Collapsible sidebar
-    toggleBtn.addEventListener('click', () => {
+    // Toggle sidebar
+    toggleBtn.addEventListener('click', e => {
+      e.stopPropagation();                 
       sidebar.classList.toggle('collapsed');
     });
 
-    // Next/Previous buttons
-    const nextButton = document.getElementById('nextButton');
-    const prevButton = document.getElementById('prevButton');
-
-    nextButton.addEventListener('click', () => {
-        let nextIndex = currentFileIndex + 1;
-        if (nextIndex >= totalFiles) {
-            nextIndex = 0;
-        }
-        loadImage(nextIndex);
+    // ALSO expand when collapsed sidebar area is clicked
+    sidebar.addEventListener('click', e => {
+      if (sidebar.classList.contains('collapsed')) {
+        sidebar.classList.remove('collapsed');
+    
+      }
     });
 
-    prevButton.addEventListener('click', () => {
-        let prevIndex = currentFileIndex - 1;
-        if (prevIndex < 0) {
-            prevIndex = totalFiles - 1;
-        }
-        loadImage(prevIndex);
+    // Next / Prev buttons
+    document.getElementById('nextButton').addEventListener('click', () => {
+      loadImage((currentFileIndex + 1) % totalFiles);
+    });
+    document.getElementById('prevButton').addEventListener('click', () => {
+      loadImage((currentFileIndex - 1 + totalFiles) % totalFiles);
     });
 
-
-    // On form submission, disable the button and show "Analyzing..."
-    const preprocessForm = document.getElementById('preprocessForm');
-    preprocessForm.addEventListener('submit', function () {
-      const startButton = document.getElementById('startAnalysisButton');
-      startButton.disabled = true; 
-      startButton.value = "Analyzing..."; 
-      startButton.style.backgroundColor = '#0056b3'; 
-      startButton.style.pointerEvents = 'none'; 
-      startButton.style.cursor = 'not-allowed';
+    // Disable analyse button on submit
+    document.getElementById('preprocessForm').addEventListener('submit', () => {
+      const btn = document.getElementById('startAnalysisButton');
+      btn.disabled = true;
+      btn.value = "Analyzing...";
+      btn.style.pointerEvents = 'none';
+      btn.style.cursor = 'not-allowed';
     });
 
-    // AJAX to load images by index
+    // AJAX load
     function loadImage(newIndex) {
-        // Wrap around if out of bounds
-        if (newIndex < 0) {
-            newIndex = totalFiles - 1;
-        } else if (newIndex >= totalFiles) {
-            newIndex = 0;
-        }
-
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', `?file_index=${newIndex}&total_files=${totalFiles}`, true);
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.onload = function () {
-            if (xhr.status === 200) {
-            const response = JSON.parse(xhr.responseText);
-            updateContent(response);
-            }
-        };
-        xhr.send();
-    }
-
-
-    // Update the main content with the new image data
-    function updateContent(data) {
-      // Clear existing images
-      const imageContainer = document.getElementById('imageContainer');
-      imageContainer.innerHTML = '';
-
-      // Insert new images
-      data.images.forEach((imgData, index) => {
-        const imgElement = document.createElement('img');
-        imgElement.src = imgData.file_location.url;
-        if (index === 0) {
-          imgElement.width = 500;
-          imgElement.height = 500;
-        } else {
-          imgElement.width = 300;
-          imgElement.height = 300;
-        }
-        imageContainer.appendChild(imgElement);
+      if (newIndex < 0) newIndex = totalFiles - 1;
+      if (newIndex >= totalFiles) newIndex = 0;
+      fetch(`?file_index=${newIndex}&total_files=${totalFiles}`, {
+        headers: {'X-Requested-With':'XMLHttpRequest'}
+      })
+      .then(r => r.json())
+      .then(data => {
+        // update images
+        const container = document.getElementById('imageContainer');
+        container.innerHTML = '';
+        data.images.forEach((img, i) => {
+          const el = document.createElement('img');
+          el.src = img.file_location.url;
+          if (i === 0) {
+            el.width = 500; el.height = 500;
+          } else {
+            el.width = 300; el.height = 300;
+          }
+          container.appendChild(el);
+        });
+        // update text & index
+        document.getElementById('fileName').textContent = data.file_name;
+        document.getElementById('currentFileIndex').textContent = data.current_file_index + 1;
+        currentFileIndex = data.current_file_index;
+        updateSidebarActive();
       });
-      
-      // Update current index and file name
-      document.getElementById('currentFileIndex').textContent = data.current_file_index + 1;
-      document.getElementById('fileName').textContent = data.file_name;
-      currentFileIndex = data.current_file_index;
-      
-      // Update sidebar highlight
-      updateSidebarActive();
     }
+  </script>
+
+  <script>
+    // CSRF helper
+    function getCookie(name) {
+      let val = null;
+      document.cookie.split(';').forEach(c => {
+        c = c.trim();
+        if (c.startsWith(name + '=')) {
+          val = decodeURIComponent(c.slice(name.length + 1));
+        }
+      });
+      return val;
+    }
+
+    // Make each .channel-bar sortable
+    document.querySelectorAll('.channel-bar').forEach(bar => {
+      const uuid = bar.parentElement.dataset.uuid;
+      Sortable.create(bar, {
+        animation: 150,
+        onEnd() {
+          const newOrder = Array.from(bar.children).map(chip => chip.textContent);
+          fetch(`/api/update-channel-order/${uuid}/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({ order: newOrder })
+          }).then(r => {
+            if (!r.ok) console.error('Failed to save channel order', r);
+          });
+        }
+      });
+    });
   </script>
 </body>
 </html>

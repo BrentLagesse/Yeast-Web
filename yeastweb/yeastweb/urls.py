@@ -18,7 +18,9 @@ from django.contrib import admin
 from django.urls import path
 from core.views import upload_images, homepage, pre_process_step, convert_to_image, segment_image, display
 from django.conf import settings
-from django.conf.urls.static import static  # new
+from django.conf.urls.static import static  
+from django.urls import path
+from core.views.pre_process_step import update_channel_order
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -29,6 +31,7 @@ urlpatterns = [
     path('image/<str:uuids>/convert/', convert_to_image.convert_to_image),
     path('image/<str:uuids>/segment/', segment_image.segment_image),
     path('image/<str:uuids>/display/', display.display_cell),  # Accepting multiple UUIDs as a comma-separated string
+    path('api/update-channel-order/<str:uuid>/', update_channel_order, name='update_channel_order'),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

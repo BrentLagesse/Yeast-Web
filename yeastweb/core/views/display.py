@@ -27,10 +27,16 @@ def display_cell(request, uuids):
             # Get the uploaded image details, including the file name
             uploaded_image = UploadedImage.objects.get(uuid=uuid)
             image_name = uploaded_image.name
-            # Append file info for the sidebar
+            # get your channel-to-index mapping
+            channel_config = get_channel_config_for_uuid(uuid)
+            # sort by the saved index → this yields e.g. ["DIC","DAPI","mCherry","GFP"]
+            detected = [ch for ch, _ in sorted(channel_config.items(), key=lambda t: t[1])]
+
+            # Append file info for the sidebar, INCLUDING the channel pills
             file_list.append({
                 'uuid': uuid,
                 'name': image_name,
+                'detected_channels': detected,
             })
             image_name_stem = Path(image_name).stem
             full_outlined = f"{MEDIA_URL}{uuid}/output/{image_name_stem}.png"
