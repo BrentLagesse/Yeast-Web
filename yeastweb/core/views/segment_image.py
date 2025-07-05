@@ -303,11 +303,14 @@ def calculate_intensity(cp,gray,best_contour,orig_gray_GFP_no_bg,mcherry_line_pt
 
     cp.line_gfp_intensity = float(mcherry_line_intensity_sum)
 
-def green_red_intensity(preprocessed_image):
-    mCherry = preprocessed_image['gray']
-    gfp = preprocessed_image['orig_gray_GFP_no_bg']
 
 def identify_red_signal(red_image, intensity):
+    """
+    Identify red signal from mCherry image
+    :param red_image: Gray scale of mCherry image
+    :param intensity: Threshold for detection
+    :return: list of red dot's center coordinates
+    """
     red_dot = []
 
     _, thresh = cv2.threshold(red_image,intensity,255,cv2.THRESH_BINARY) # zeroing the value under the thresh hold
@@ -315,7 +318,7 @@ def identify_red_signal(red_image, intensity):
 
     for contour in contours:
         area = cv2.contourArea(contour)
-        if 5 < area < 1000:
+        if 5 < area < 1000: #TODO: Make area adjustable
             red_dot.append(get_contour_center([contour])[0])
 
     return red_dot
@@ -368,25 +371,44 @@ def get_stats(cp, conf):
     edit_testing_rgb = cv2.cvtColor(edit_testing, cv2.COLOR_BGR2RGB)
     edit_GFP_img_rgb = cv2.cvtColor(edit_GFP_img, cv2.COLOR_BGR2RGB)
 
-    red_dot = identify_red_signal(preprocessed_images['gray'], 10)
 
-    print(red_dot)
-
-    for i in red_dot:
-        mask = create_circular_mask(preprocessed_images['gray'].shape,i,10)
-        red_intensity = calculate_intensity_dot(preprocessed_images['gray'],mask)
-        green_intensity = calculate_intensity_dot(preprocessed_images['orig_gray_GFP_no_bg'],mask)
-
-        ratio = green_intensity / red_intensity if red_intensity != 0 else 0
-        print(ratio)
+    cp.green_red_intensity = calculate_red_green_intensity(preprocessed_images['gray'],preprocessed_images['orig_gray_GFP_no_bg'])
 
     return Image.fromarray(edit_testing_rgb), Image.fromarray(edit_GFP_img_rgb)
 
+def calculate_red_green_intensity(mcherry_gray,GFP_gray):
+    """
+    :param mcherry_gray: mCherry image in grayscale
+    :param GFP_gray: GFP image in grayscale
+    :return: ratio between red and green intensity
+    """
+    red_dot = identify_red_signal(mcherry_gray, 10) # identify red signal from the mCherry
+    ratio = 0
+    for i in red_dot:
+        mask = create_circular_mask(mcherry_gray.shape, i, 10) # draw a contour around red signal TODO: make the radius configurable
+        red_intensity = calculate_intensity_dot(mcherry_gray, mask)
+        green_intensity = calculate_intensity_dot(GFP_gray, mask)
+
+        ratio = green_intensity / red_intensity if red_intensity != 0 else 0
+    return ratio
+
 def calculate_intensity_dot(image, mask):
+    """
+    :param image: Gray scale image
+    :param mask: Contour mask
+    :return: Sum of values in the mask from the image
+    """
     masked_pixel = image[mask > 0]
     return np.sum(masked_pixel) if len(masked_pixel) > 0 else 0
 
 def create_circular_mask(image_shape, center, radius):
+    """
+    Draw a circular mask around the center
+    :param image_shape: Gray scale image
+    :param center: Coordinates of the center of the mask
+    :param radius: Radius of the mask
+    :return: Masked image
+    """
     mask = np.zeros(image_shape, dtype=np.uint8)
     cv2.circle(mask, center, radius, 255, -1)
     return mask
@@ -983,6 +1005,7 @@ def segment_image(request, uuids):
                     'line_gfp_intensity': 0.0,
                     'nucleus_intensity_sum': 0.0,
                     'cellular_intensity_sum': 0.0,
+                    'green_red_intensity': 0.0,
 
                     # Store file path information
                     'dv_file_path': DV_path,

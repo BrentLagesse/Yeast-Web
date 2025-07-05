@@ -89,6 +89,7 @@ def display_cell(request, uuids):
                         'line_gfp_intensity': cell_stat.line_gfp_intensity,
                         'nucleus_intensity_sum': cell_stat.nucleus_intensity_sum,
                         'cellular_intensity_sum': cell_stat.cellular_intensity_sum,
+                        'green_red_intensity': cell_stat.green_red_intensity,
                     }
                 except CellStatistics.DoesNotExist:
                     statistics[str(i)] = None  # In case statistics are missing for a cell
