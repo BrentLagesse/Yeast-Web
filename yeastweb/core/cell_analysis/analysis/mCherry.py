@@ -2,8 +2,9 @@ import math, cv2
 import numpy as np
 from ..utils.contour_helper import get_contour_center
 from ..utils.image_helper import calculate_intensity_mask,create_circular_mask
+from ..image_processing import GrayImage
 
-def mcherry_line_calculation(cp, contours_mcherry,best_mcherry_contours, mcherry_line_width_input,edit_testing,gray):
+def mcherry_line_calculation(cp, contours_mcherry,best_mcherry_contours, mcherry_line_width_input,original_image,preprocessed_images:GrayImage):
     """
     This function calculates the mCherry line distance of a cell pair.
     :param cp: CellStatistics object
@@ -30,8 +31,9 @@ def mcherry_line_calculation(cp, contours_mcherry,best_mcherry_contours, mcherry
             c2x, c2y = centers[1]
 
             # Use a 3-channel white color tuple:
-            cv2.line(edit_testing, (c1x, c1y), (c2x, c2y), (255, 255, 255), int(mcherry_line_width_input))
-            mcherry_line_mask = np.zeros(gray.shape, np.uint8)
+            cv2.line(original_image, (c1x, c1y), (c2x, c2y), (255, 255, 255), int(mcherry_line_width_input))
+            gray_mCherry = preprocessed_images.get_image('gray_mcherry')
+            mcherry_line_mask = np.zeros(gray_mCherry.shape, np.uint8)
             cv2.line(mcherry_line_mask, (c1x, c1y), (c2x, c2y), 255, int(mcherry_line_width_input))
             mcherry_line_pts = np.transpose(np.nonzero(mcherry_line_mask))
 
@@ -62,12 +64,14 @@ def identify_red_signal(red_image, intensity):
 
     return red_dot
 
-def calculate_red_green_intensity(mcherry_gray,GFP_gray):
+def calculate_red_green_intensity(preprocessed_images:GrayImage):
     """
-    :param mcherry_gray: mCherry image in grayscale
-    :param GFP_gray: GFP image in grayscale
+    :param preprocessed_images: GrayImage object
     :return: ratio between red and green intensity
     """
+    mcherry_gray = preprocessed_images.get_image('gray_mcherry')
+    GFP_gray = preprocessed_images.get_image('GFP')
+
     red_dot = identify_red_signal(mcherry_gray, 10) # identify red signal from the mCherry
     ratio = 0
     for i in red_dot:

@@ -10,6 +10,7 @@ from enum import Enum
 from PIL import Image
 from mrc import DVFile
 from core.config import input_dir, get_channel_config_for_uuid
+import numpy as np
 
 
 class UploadedImage(models.Model):
@@ -154,15 +155,6 @@ class CellStatistics(models.Model):
                 return img
             else:
                 return f"{self.get_base_name()}_PRJ-{gfp_channel}{outlinestr}.png"
-
-
-
-
-# class PreprocessImage(models.Model):
-#     uploaded_image_uuid = models.OneToOneField(UploadedImage, on_delete = models.CASCADE, primary_key = True)
-#     file_location = models.FileField(upload_to=update_to)
-    
-
 
 # class FileHandler(models.Model):
 #     FILE_TYPES_CHOICES = {

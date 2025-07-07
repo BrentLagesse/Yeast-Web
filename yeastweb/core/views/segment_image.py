@@ -19,8 +19,8 @@ from core.config import input_dir
 from core.config import get_channel_config_for_uuid
 from core.config import DEFAULT_PROCESS_CONFIG
 
-from core.cell_analysis.image_processing import find_contours, merge_contour, load_image, preprocess_image
-from core.cell_analysis.analysis import mcherry_line_calculation, calculate_red_green_intensity, calculate_nucleus_intensity
+from core.cell_analysis.image_processing import find_contours, merge_contour, load_image, preprocess_image_to_gray
+from core.cell_analysis.analysis import mcherry_line_calculation, calculate_red_green_intensity, calculate_nucleus_intensity,NucleusIntensity
 from core.cell_analysis.utils import get_neighbor_count, get_contour_center, ensure_3channel_bgr
 
 
@@ -59,7 +59,7 @@ def get_stats(cp, conf):
 
     images = load_image(cp,output_dir)
     # gray scale conversion and blurring
-    preprocessed_images = preprocess_image(images, kernel_deviation_input, kernel_size_input)
+    preprocessed_images = preprocess_image_to_gray(images, kernel_deviation_input, kernel_size_input)
 
     contours_data = find_contours(preprocessed_images)
 
@@ -77,7 +77,7 @@ def get_stats(cp, conf):
     edit_testing = ensure_3channel_bgr(edit_testing)
     edit_GFP_img = ensure_3channel_bgr(edit_GFP_img)
 
-    mcherry_line_pts = mcherry_line_calculation(cp,contours_data['contours_mcherry'],contours_data['bestContours_mcherry'],mcherry_line_width_input,edit_testing,preprocessed_images['gray'])
+    mcherry_line_pts = mcherry_line_calculation(cp,contours_data['contours_mcherry'],contours_data['bestContours_mcherry'],mcherry_line_width_input,edit_testing,preprocessed_images)
 
     best_contour = merge_contour(contours_data['bestContours'],contours_data['contours'])
 
@@ -85,15 +85,16 @@ def get_stats(cp, conf):
     cv2.drawContours(edit_testing, [best_contour], 0, (255, 255, 255), 1)
     cv2.drawContours(edit_GFP_img, [best_contour], 0, (255, 255, 255), 1)
 
-    calculate_nucleus_intensity(cp, preprocessed_images['gray'], best_contour,
-                                preprocessed_images['orig_gray_GFP_no_bg'], mcherry_line_pts,output_dir)
+    #calculate_nucleus_intensity(cp,  best_contour, mcherry_line_pts,output_dir, preprocessed_images)
+    ni = NucleusIntensity(cp,preprocessed_images,output_dir)
+    ni.calculate_statistics(best_contour,mcherry_line_pts)
 
     # Convert BGR back to RGB so PIL shows correct colors
     edit_testing_rgb = cv2.cvtColor(edit_testing, cv2.COLOR_BGR2RGB)
     edit_GFP_img_rgb = cv2.cvtColor(edit_GFP_img, cv2.COLOR_BGR2RGB)
 
 
-    cp.green_red_intensity = calculate_red_green_intensity(preprocessed_images['gray'],preprocessed_images['orig_gray_GFP_no_bg'])
+    cp.green_red_intensity = calculate_red_green_intensity(preprocessed_images)
 
     return Image.fromarray(edit_testing_rgb), Image.fromarray(edit_GFP_img_rgb)
 
@@ -590,6 +591,7 @@ def segment_image(request, uuids):
         else:
             configuration = settings.DEFAULT_SEGMENT_CONFIG
 
+        selected_analysis = request.session.get('selected_analysis', [])
         # Build a proper 'conf' dict with required keys for get_stats
         conf = {
             'input_dir': input_dir,
@@ -598,6 +600,7 @@ def segment_image(request, uuids):
             'mCherry_line_width': configuration["mCherry_line_width"],
             'kernel_deviation': configuration["kernel_deviation"],
             'arrested': configuration["arrested"],
+            'analysis' : selected_analysis,
         }
 
         # For each cell_number in the segmentation, create/fetch a CellStatistics object

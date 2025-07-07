@@ -1,19 +1,20 @@
 import cv2, math
 import numpy as np
 from ..utils.contour_helper import get_largest
+from .image_operations import GrayImage
 
-def find_contours(images):
+def find_contours(images:GrayImage):
     """
     This function finds contours in an image and returns them as a numpy array.
     :param images: Gray scale image list
     :return: Dictionary of contours, best contours
     """
     # finding threshold
-    ret_mcherry, thresh_mcherry = cv2.threshold(images['gray_mcherry'], 0, 1,
+    ret_mcherry, thresh_mcherry = cv2.threshold(images.get_image('gray_mcherry_3'), 0, 1,
                                                 cv2.ADAPTIVE_THRESH_GAUSSIAN_C | cv2.THRESH_OTSU)
-    ret, thresh = cv2.threshold(images['gray'], 0, 1,
+    ret, thresh = cv2.threshold(images.get_image('gray_mcherry'), 0, 1,
                                 cv2.ADAPTIVE_THRESH_GAUSSIAN_C | cv2.THRESH_OTSU)
-    cell_int_ret, cell_int_thresh = cv2.threshold(images['cell_intensity_gray'], 0, 1,
+    cell_int_ret, cell_int_thresh = cv2.threshold(images.get_image('GFP'), 0, 1,
                                 cv2.ADAPTIVE_THRESH_GAUSSIAN_C | cv2.THRESH_OTSU)
 
     cell_int_cont, cell_int_h = cv2.findContours(cell_int_thresh, 1, 2)

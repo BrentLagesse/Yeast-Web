@@ -3,6 +3,26 @@ from PIL import Image
 import numpy as np
 from cv2_rolling_ball import subtract_background_rolling_ball
 
+class GrayImage:
+    _image_storage = {}
+    def __init__(self, img:dict = None):
+        if img:
+            self._image_storage = img
+        else:
+            self._image_storage = {
+                'gray_mcherry_3': None,
+                'gray_mcherry': None,
+                'GFP': None,
+                'GFP_no_bg': None,
+            }
+    def set_image(self, key:str, image:np.ndarray):
+        self._image_storage[key] = image
+
+    def set_image(self, images:dict):
+        self._image_storage = images
+
+    def get_image(self, key):
+        return self._image_storage[key]
 
 def load_image(cp, output_dir):
     """
@@ -33,7 +53,7 @@ def load_image(cp, output_dir):
         "GFP_outline": img_for_cell_intensity_mat}
 
 
-def preprocess_image(images, kdev, ksize):
+def preprocess_image_to_gray(images, kdev, ksize):
     """
     This function preprocesses an image and returns a gray scale of images and blurred version of it.
     :param images: A dictionary consist of mCherry, GFP image along with their version in numpy array
@@ -55,14 +75,18 @@ def preprocess_image(images, kdev, ksize):
     original_gray_mcherry = cv2.cvtColor(images['mCherry'], cv2.COLOR_RGB2GRAY)
 
     # blurring the boundaries
-    gray_mcherry = cv2.GaussianBlur(original_gray_mcherry, (3, 3), 1)
+    gray_mcherry_3 = cv2.GaussianBlur(original_gray_mcherry, (3, 3), 1)
 
-    gray = cv2.GaussianBlur(original_gray_mcherry, (ksize, ksize), kdev)  # need to save gray
+    gray_mcherry = cv2.GaussianBlur(original_gray_mcherry, (ksize, ksize), kdev)  # need to save gray
 
     # Some of the cell outlines are split into two circles. Blur so that the contour covers both
     cell_intensity_gray = cv2.GaussianBlur(cell_intensity_gray, (3,3), 1)
 
-    return {"gray_mcherry": gray_mcherry,
-            "gray": gray, # this is gray mcherry but with the user setting
-            'orig_gray_GFP_no_bg':orig_gray_GFP_no_bg,
-            "cell_intensity_gray": cell_intensity_gray}
+    gray_image = GrayImage(img={
+        'gray_mcherry_3': gray_mcherry_3,
+        'gray_mcherry': gray_mcherry,
+        'GFP': cell_intensity_gray,
+        'GFP_no_bg': orig_gray_GFP_no_bg,
+    })
+
+    return gray_image

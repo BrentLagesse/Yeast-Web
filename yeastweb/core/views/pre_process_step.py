@@ -60,6 +60,8 @@ def pre_process_step(request, uuids):
     # POST: preprocess + predict all, then redirect
     if request.method == "POST":
         selected_analysis = request.POST.getlist('selected_analysis')
+        request.session['selected_analysis'] = selected_analysis # save selected analysis to session
+
         for image_uuid in uuid_list:
             img_obj = get_object_or_404(UploadedImage, uuid=image_uuid)
             out_dir = Path(MEDIA_ROOT) / image_uuid
