@@ -8,7 +8,6 @@ from django.conf import settings
 
 from core.models import UploadedImage, SegmentedImage, CellStatistics, Contour
 from core.config import input_dir, output_dir
-from cv2_rolling_ball import subtract_background_rolling_ball
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.utils import timezone
@@ -19,6 +18,11 @@ from yeastweb.settings import MEDIA_ROOT, MEDIA_URL
 from core.config import input_dir
 from core.config import get_channel_config_for_uuid
 from core.config import DEFAULT_PROCESS_CONFIG
+
+from core.cell_analysis.image_processing import find_contours, merge_contour, load_image, preprocess_image
+from core.cell_analysis.analysis import mcherry_line_calculation, calculate_red_green_intensity, calculate_nucleus_intensity
+from core.cell_analysis.utils import get_neighbor_count, get_contour_center, ensure_3channel_bgr
+
 
 from scipy.spatial.distance import euclidean  
 from collections import defaultdict
@@ -49,285 +53,11 @@ def set_options(opt):
     choice_var = opt['arrested']
     return kernel_size_input, mcherry_line_width_input, kernel_deviation_input, choice_var
 
-def load_image(cp):
-    """
-    This function loads an image from a file path and returns it as a numpy array.
-    :param cp: A CellStatistics object
-    :return: A dictionary consist of mCherry, GFP image along with their version in numpy array
-    """
-    # outlines screw up the analysis
-    cp_mCherry = cp.get_mCherry(use_id=True, outline=False)
-    cp_GFP = cp.get_GFP(use_id=True, outline=False)
-
-    # opening the image from the saved segmented directory
-    print("test123", 'segmented/' + cp_mCherry)
-    im_mCherry = Image.open(output_dir + '/segmented/' + cp_mCherry)
-    im_GFP = Image.open(output_dir + '/segmented/' + cp_GFP)
-    im_GFP_for_cellular_intensity = Image.open(output_dir + '/segmented/' + cp_GFP)  # has outline
-
-    # convert image to matrix
-    im_mCherry_mat = np.array(im_mCherry)
-    GFP_img_mat = np.array(im_GFP)
-    img_for_cell_intensity_mat = np.array(im_GFP_for_cellular_intensity)
-
-    return {
-        'im_mCherry': im_mCherry,
-        'im_GFP': im_GFP,
-        "mCherry": im_mCherry_mat,
-        "GFP":GFP_img_mat,
-        "GFP_outline": img_for_cell_intensity_mat}
-
-def preprocess_image(images, kdev, ksize):
-    """
-    This function preprocesses an image and returns a gray scale of images and blurred version of it.
-    :param images: A dictionary consist of mCherry, GFP image along with their version in numpy array
-    :param kdev: Kernel deviation for blurring
-    :param ksize: Kernel size for blurring
-    :return: A dictionary containing grayscale and background-subtracted image data
-    """
-    # ksize must be odd
-    if ksize % 2 == 0:
-        ksize += 1
-        print("You used an even ksize, updating to odd number +1")
-
-    # was RGBA2GRAY
-    # converting to gray scale
-    cell_intensity_gray = cv2.cvtColor(images["GFP_outline"], cv2.COLOR_RGB2GRAY)
-    orig_gray_GFP = cv2.cvtColor(images['GFP'], cv2.COLOR_RGB2GRAY)
-    orig_gray_GFP_no_bg, background = subtract_background_rolling_ball(orig_gray_GFP, 50, light_background=False,
-                                                                       use_paraboloid=False, do_presmooth=True)
-    original_gray_mcherry = cv2.cvtColor(images['mCherry'], cv2.COLOR_RGB2GRAY)
-
-    # blurring the boundaries
-    gray_mcherry = cv2.GaussianBlur(original_gray_mcherry, (3, 3), 1)
-
-    gray = cv2.GaussianBlur(original_gray_mcherry, (ksize, ksize), kdev)  # need to save gray
-
-    # Some of the cell outlines are split into two circles. Blur so that the contour covers both
-    cell_intensity_gray = cv2.GaussianBlur(cell_intensity_gray, (3,3), 1)
-
-    return {"gray_mcherry": gray_mcherry,
-            "gray": gray, # this is gray mcherry but with the user setting
-            'orig_gray_GFP_no_bg':orig_gray_GFP_no_bg,
-            "cell_intensity_gray": cell_intensity_gray}
-
-def find_contours(images):
-    """
-    This function finds contours in an image and returns them as a numpy array.
-    :param images: Gray scale image list
-    :return: Dictionary of contours, best contours
-    """
-    # finding threshold
-    ret_mcherry, thresh_mcherry = cv2.threshold(images['gray_mcherry'], 0, 1,
-                                                cv2.ADAPTIVE_THRESH_GAUSSIAN_C | cv2.THRESH_OTSU)
-    ret, thresh = cv2.threshold(images['gray'], 0, 1,
-                                cv2.ADAPTIVE_THRESH_GAUSSIAN_C | cv2.THRESH_OTSU)
-    cell_int_ret, cell_int_thresh = cv2.threshold(images['cell_intensity_gray'], 0, 1,
-                                cv2.ADAPTIVE_THRESH_GAUSSIAN_C | cv2.THRESH_OTSU)
-
-    cell_int_cont, cell_int_h = cv2.findContours(cell_int_thresh, 1, 2)
-
-    contours, h = cv2.findContours(thresh, 1, 2)
-    contours_mcherry = cv2.findContours(thresh_mcherry, 1, 2) # return list of contours
-
-    # Biggest contour for the cellular intensity boundary
-    # TODO: In the future, handle multiple large contours more robustly
-    """
-    largest = 0
-    largest_cell_cnt = None
-    for i, cnt in enumerate(cell_int_cont):
-        area = cv2.contourArea(cnt)
-        if area > largest:
-            largest = area
-            largest_cell_cnt = cnt
-    """
-    # Identify the two largest contours in each set
-    bestContours = get_largest(contours)
-    bestContours_mcherry = get_largest(contours_mcherry[0])
-
-    return {
-        'bestContours': bestContours,
-        'bestContours_mcherry': bestContours_mcherry,
-        'contours': contours,
-        'contours_mcherry': contours_mcherry
-    }
-
-def mcherry_line_calculation(cp, contours_mcherry,best_mcherry_contours, mcherry_line_width_input,edit_testing,gray):
-    """
-    This function calculates the mCherry line distance of a cell pair.
-    :param cp: CellStatistics object
-    :param contours_mcherry: List of contours in mCherry
-    :param best_mcherry_contours: Index of best contours in mCherry
-    :return: Distance between centers of cell pair
-    """
-    mcherry_line_pts = []
-    if len(best_mcherry_contours) == 2:
-        # choose two best contour
-        c1 = contours_mcherry[0][best_mcherry_contours[0]]
-        c2 = contours_mcherry[0][best_mcherry_contours[1]]
-
-        # getting 2 centers of contours
-        try:
-            centers = get_contour_center([c1, c2])
-            # distance between 2 contour
-            d = math.dist(centers[0],centers[1])
-            # Directly assign to cp.red_dot_distance (instead of cp.set_red_dot_distance(d))
-            cp.red_dot_distance = d
-            cp.distance = float(d)
-
-            c1x, c1y = centers[0]
-            c2x, c2y = centers[1]
-
-            # Use a 3-channel white color tuple:
-            cv2.line(edit_testing, (c1x, c1y), (c2x, c2y), (255, 255, 255), int(mcherry_line_width_input))
-            mcherry_line_mask = np.zeros(gray.shape, np.uint8)
-            cv2.line(mcherry_line_mask, (c1x, c1y), (c2x, c2y), 255, int(mcherry_line_width_input))
-            mcherry_line_pts = np.transpose(np.nonzero(mcherry_line_mask))
-
-            return mcherry_line_pts
-
-        except ZeroDivisionError:
-            print("can't find contours")
-            return []
-    else:
-        return []
-
-def merge_contour(bestContours, contours):
-    """
-    This function merges contours into a single contour.
-    :param bestContours: List of best contours
-    :param contours: List of contours
-    :return: Merged contour
-    """
-    best_contour = None
-    if len(bestContours) == 2:
-        c1 = contours[bestContours[0]]
-        c2 = contours[bestContours[1]]
-        MERGE_CLOSEST = True
-        if MERGE_CLOSEST:
-            smallest_distance = 999999999
-            second_smallest_distance = 999999999
-            smallest_pair = (-1, -1)
-
-            for pt1 in c1:
-                for i, pt2 in enumerate(c2):
-                    d = math.sqrt((pt1[0][0] - pt2[0][0]) ** 2 + (pt1[0][1] - pt2[0][1]) ** 2)
-                    if d < smallest_distance:
-                        second_smallest_distance = smallest_distance
-                        second_smallest_pair = smallest_pair
-                        smallest_distance = d
-                        smallest_pair = (pt1, pt2, i)
-                    elif d < second_smallest_distance:
-                        second_smallest_distance = d
-                        second_smallest_pair = (pt1, pt2, i)
-
-            # Merge c2 into c1 at the closest points
-            best_contour = []
-            for pt1 in c1:
-                best_contour.append(pt1)
-                if pt1[0].tolist() != smallest_pair[0][0].tolist():
-                    continue
-                # we are at the closest p1
-                start_loc = smallest_pair[2]
-                finish_loc = start_loc - 1
-                if start_loc == 0:
-                    finish_loc = len(c2) - 1
-                current_loc = start_loc
-                while current_loc != finish_loc:
-                    best_contour.append(c2[current_loc])
-                    current_loc += 1
-                    if current_loc >= len(c2):
-                        current_loc = 0
-                best_contour.append(c2[finish_loc])
-
-            best_contour = np.array(best_contour).reshape((-1, 1, 2)).astype(np.int32)
-
-    if len(bestContours) == 1:
-        best_contour = contours[bestContours[0]]
-
-    print("only 1 contour found")
-    return best_contour
-
-def calculate_intensity(cp,gray,best_contour,orig_gray_GFP_no_bg,mcherry_line_pts):
-    """
-    This function calculate the nucleus intensity within a green image
-    :param gray: Gray scale of green image
-    """
-    mask_contour = np.zeros(gray.shape, np.uint8)
-    cv2.fillPoly(mask_contour, [best_contour], 255)
-    pts_contour = np.transpose(np.nonzero(mask_contour))
-
-    # Build the expected outline filename:
-    # cp.image_name is set (in the get_or_create for CellStatistics) as DV_Name + '.dv',
-    # so taking os.path.splitext(cp.image_name)[0] gives the full DV name (e.g. "M3850_001_PRJ")
-    outline_filename = os.path.splitext(cp.image_name)[0] + '-' + str(cp.cell_id) + '.outline'
-
-    # The outline files are stored in the "output" folder (not in a "masks" folder)
-    mask_file_path = os.path.join(output_dir, 'output', outline_filename)
-
-    with open(mask_file_path, 'r') as csvfile:
-        csvreader = csv.reader(csvfile)
-        border_cells = []
-        for row in csvreader:
-            border_cells.append([int(row[0]), int(row[1])])
-
-    # Calculate nucleus intensity inside the best_contour
-    intensity_sum = 0
-    for p in pts_contour:
-        intensity_sum += orig_gray_GFP_no_bg[p[0]][p[1]]
-
-    # Cast to Python int before saving into the JSON field
-    cp.nucleus_intensity[Contour.CONTOUR.name] = int(intensity_sum)
-    cp.nucleus_total_points = len(pts_contour)  # This is usually a Python int already
-
-    cp.nucleus_intensity_sum = float(intensity_sum)
-
-    # Calculate cell intensity from the "border_cells" list
-    cell_intensity_sum = 0
-    for p in border_cells:
-        cell_intensity_sum += orig_gray_GFP_no_bg[p[0]][p[1]]
-
-    # Ensure that the JSON field gets a Python int
-    cp.cell_intensity = int(cell_intensity_sum)
-    cp.cell_total_points = len(border_cells)
-
-    cp.cellular_intensity_sum = float(cell_intensity_sum)
-
-    # Calculate mCherry line intensity
-    mcherry_line_intensity_sum = 0
-    for p in mcherry_line_pts:
-        mcherry_line_intensity_sum += orig_gray_GFP_no_bg[p[0]][p[1]]
-
-    # Again, cast to a Python int
-    cp.mcherry_line_gfp_intensity = int(mcherry_line_intensity_sum)
-
-    cp.line_gfp_intensity = float(mcherry_line_intensity_sum)
-
-
-def identify_red_signal(red_image, intensity):
-    """
-    Identify red signal from mCherry image
-    :param red_image: Gray scale of mCherry image
-    :param intensity: Threshold for detection
-    :return: list of red dot's center coordinates
-    """
-    red_dot = []
-
-    _, thresh = cv2.threshold(red_image,intensity,255,cv2.THRESH_BINARY) # zeroing the value under the thresh hold
-    contours,_ = cv2.findContours(thresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-
-    for contour in contours:
-        area = cv2.contourArea(contour)
-        if 5 < area < 1000: #TODO: Make area adjustable
-            red_dot.append(get_contour_center([contour])[0])
-
-    return red_dot
-
 def get_stats(cp, conf):
     # loading configuration
     kernel_size_input, mcherry_line_width_input,kernel_deviation_input, choice_var = set_options(conf)
 
-    images = load_image(cp)
+    images = load_image(cp,output_dir)
     # gray scale conversion and blurring
     preprocessed_images = preprocess_image(images, kernel_deviation_input, kernel_size_input)
 
@@ -343,16 +73,6 @@ def get_stats(cp, conf):
     edit_testing = np.array(edit_im)
     edit_GFP_img = np.array(edit_im_GFP)
 
-    def ensure_3channel_bgr(img_array):
-        # If single channel (shape: H x W), convert to BGR
-        if len(img_array.shape) == 2:
-            return cv2.cvtColor(img_array, cv2.COLOR_GRAY2BGR)
-        # If RGBA (shape: H x W x 4), convert to BGR
-        elif img_array.shape[2] == 4:
-            return cv2.cvtColor(img_array, cv2.COLOR_RGBA2BGR)
-        # If already H x W x 3, we assume it's BGR or RGB, but let's treat as BGR
-        return img_array
-
     # Force the arrays to 3-channel BGR
     edit_testing = ensure_3channel_bgr(edit_testing)
     edit_GFP_img = ensure_3channel_bgr(edit_GFP_img)
@@ -365,7 +85,8 @@ def get_stats(cp, conf):
     cv2.drawContours(edit_testing, [best_contour], 0, (255, 255, 255), 1)
     cv2.drawContours(edit_GFP_img, [best_contour], 0, (255, 255, 255), 1)
 
-    calculate_intensity(cp,preprocessed_images['gray'],best_contour,preprocessed_images['orig_gray_GFP_no_bg'],mcherry_line_pts)
+    calculate_nucleus_intensity(cp, preprocessed_images['gray'], best_contour,
+                                preprocessed_images['orig_gray_GFP_no_bg'], mcherry_line_pts,output_dir)
 
     # Convert BGR back to RGB so PIL shows correct colors
     edit_testing_rgb = cv2.cvtColor(edit_testing, cv2.COLOR_BGR2RGB)
@@ -375,117 +96,6 @@ def get_stats(cp, conf):
     cp.green_red_intensity = calculate_red_green_intensity(preprocessed_images['gray'],preprocessed_images['orig_gray_GFP_no_bg'])
 
     return Image.fromarray(edit_testing_rgb), Image.fromarray(edit_GFP_img_rgb)
-
-def calculate_red_green_intensity(mcherry_gray,GFP_gray):
-    """
-    :param mcherry_gray: mCherry image in grayscale
-    :param GFP_gray: GFP image in grayscale
-    :return: ratio between red and green intensity
-    """
-    red_dot = identify_red_signal(mcherry_gray, 10) # identify red signal from the mCherry
-    ratio = 0
-    for i in red_dot:
-        mask = create_circular_mask(mcherry_gray.shape, i, 10) # draw a contour around red signal TODO: make the radius configurable
-        red_intensity = calculate_intensity_dot(mcherry_gray, mask)
-        green_intensity = calculate_intensity_dot(GFP_gray, mask)
-
-        ratio = green_intensity / red_intensity if red_intensity != 0 else 0
-    return ratio
-
-def calculate_intensity_dot(image, mask):
-    """
-    :param image: Gray scale image
-    :param mask: Contour mask
-    :return: Sum of values in the mask from the image
-    """
-    masked_pixel = image[mask > 0]
-    return np.sum(masked_pixel) if len(masked_pixel) > 0 else 0
-
-def create_circular_mask(image_shape, center, radius):
-    """
-    Draw a circular mask around the center
-    :param image_shape: Gray scale image
-    :param center: Coordinates of the center of the mask
-    :param radius: Radius of the mask
-    :return: Masked image
-    """
-    mask = np.zeros(image_shape, dtype=np.uint8)
-    cv2.circle(mask, center, radius, 255, -1)
-    return mask
-
-def get_contour_center(contour_list):
-    """
-    This function calculate the center of the contours
-    :param contour_list: list of contours
-    :return: Dictionary with x,y coordinates of centers
-    """
-    coordinates = {}
-    for i in range(len(contour_list)):
-        contour = contour_list[i]
-        moment = cv2.moments(contour)
-        if moment['m00'] != 0:
-            x = int(moment['m10'] / moment['m00'])
-            y = int(moment['m01'] / moment['m00'])
-        else: # divide by 0
-            raise ZeroDivisionError
-        coordinates[i] = (x, y)
-    return coordinates
-
-def get_largest(contours):
-    """
-    This function output the two largest contours index in the list of contours
-    :param contours: List of contours
-    :return: List of indexes of the largest contour in descending order
-    """
-    best_contour = []
-    best_area = []
-    for i, contour in enumerate(contours):
-        if len(contour) == 0: # if no contour found
-            continue
-        if i == len(contours) - 1:  # not robust #TODO fix it
-            continue
-        area = cv2.contourArea(contour)
-        if len(best_contour) == 0: # first contour
-            best_contour.append(i)
-            best_area.append(area)
-            continue
-        if len(best_contour) == 1: # second contour
-            best_contour.append(i)
-            best_area.append(area)
-
-        if area > best_area[0]: # check if current contour area is bigger than biggest
-            # swapping 1st to 2nd and new one to 1st
-            best_area[1] = best_area[0]
-            best_area[0] = area
-            best_contour[1] = best_contour[0]
-            best_contour[0] = i
-        elif area > best_area[1]: # check if current contour area is bigger than second biggest
-            best_area[1] = area
-            best_contour[1] = i
-    return best_contour
-
-def get_neighbor_count(seg_image, center, radius=1, loss=0):
-    """
-    This function output the number of neighbors between center and radius
-    :param seg_image: 2D matrix represent a cell segmented image
-    :param center: coordinate of the center of the cell in (y,x)
-    :param radius: radius of searching for neighbor
-    :param loss:
-    :return: list of cell's id of cell that is within the radius
-    """
-    #TODO:  account for loss as distance gets larger
-    neighbor_list = list()
-    center_y = center[0]
-    center_x = center[1]
-    # select a square segment that is a radius away from the center
-    neighbors = seg_image[center_y - radius:center_y + radius + 1, center_x - radius:center_x + radius + 1]
-    for x, row in enumerate(neighbors):
-        for y, val in enumerate(row):
-            if ((x, y) != (radius, radius) and # check for pixel that are in the circumference
-                    int(val) != 0 and # not a cell pixel
-                    int(val) != int(seg_image[center_y, center_x])): # not part of the same cell
-                neighbor_list.append(val)
-    return neighbor_list
 
 '''Get file size of a directory recursively'''
 def get_dir_size(path):
@@ -504,7 +114,7 @@ def get_dir_size(path):
 '''Creates image "segments" from the desired image'''
 def segment_image(request, uuids):
     """
-    Handles segmentation analysis for multiple images passed as UUIDs.
+    Handles segmentation cell_analysis for multiple images passed as UUIDs.
     """
     uuid_list = uuids.split(',')
 
