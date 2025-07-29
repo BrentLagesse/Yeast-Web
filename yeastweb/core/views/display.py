@@ -47,7 +47,12 @@ def display_cell(request, uuids):
             image_index = 0
 
             if request.method == 'POST':
-                if 'gfp' in request.POST:
+                if 'delete' in request.POST:
+                    cell_id = request.POST.get('cell_id')
+                    cell_image = SegmentedImage.objects.get(UUID=uuid)
+                    delete_cell = CellStatistics.objects.get(segmented_image=cell_image,cell_id=cell_id)
+                    delete_cell.delete()
+                elif 'gfp' in request.POST:
                     image_index = 1
                 elif 'mCherry' in request.POST:
                     image_index = 0
@@ -55,7 +60,6 @@ def display_cell(request, uuids):
                     image_index = 3
                 else:
                     image_index = 2
-            print(image_index)
             image_file_name = image_name_stem + "_frame_" + str(image_index)
             full_outlined = f"{MEDIA_URL}{uuid}/output/{image_file_name}.png"
 

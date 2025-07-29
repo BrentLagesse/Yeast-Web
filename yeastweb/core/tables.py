@@ -19,7 +19,7 @@ class CellTable(tables.Table):
     cytoplasmic_intensity_DAPI = tables.Column(verbose_name='Cytoplasmic Intensity DAPI')
 
     class Meta:
-        attrs = {"class": "celltable"}
+        attrs = {"class": "celltable","id":"celltable"}
         model = CellStatistics
         fields = ('cell_id','distance','line_gfp_intensity','green_red_intensity','nucleus_intensity_sum',
                   'cellular_intensity_sum','cytoplasmic_intensity', 'cellular_intensity_sum_DAPI',
