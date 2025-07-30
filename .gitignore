@@ -19,5 +19,5 @@ yeastweb/media
 .idea
 
 # Code Formatting
-.vscode
+.vscode/
 settings.json
