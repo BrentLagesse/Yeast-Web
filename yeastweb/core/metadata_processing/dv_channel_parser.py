@@ -58,20 +58,20 @@ def get_dv_layer_count(dv_file_path):
     """
     Returns the actual number of Z‑slices (layers) in the DV.
     Handles shapes of:
-      - 2D arrays  → 1 layer
+      - 2D arrays: 1 layer
       - 3D arrays where the small dimension is Z, e.g. (Z, H, W) or (H, W, Z).
     """
     dv = DVFile(dv_file_path)
     try:
         arr = dv.asarray()
-        # 2D → exactly one layer
+        # 2D: exactly one layer
         if arr.ndim == 2:
             return 1
-        # 3D → assume the smallest axis is the Z dimension
+        # 3D: assume the smallest axis is the Z dimension
         elif arr.ndim == 3:
             return min(arr.shape)
         else:
-            # unexpected rank → treat as zero
+            # unexpected rank: treat as zero
             return 0
     finally:
         dv.close()
