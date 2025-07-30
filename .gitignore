@@ -17,3 +17,7 @@ yeastweb/cache
 yeastweb/media
 
 .idea
+
+# Code Formatting
+.vscode
+settings.json
