@@ -76,3 +76,5 @@ pymemcache==4.0.0
 django-allauth==65.7.0
 pyjwt==2.10.1
 cryptography
+django-tables2==2.7.5
+tablib==3.8.0
