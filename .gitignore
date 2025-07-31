@@ -21,8 +21,6 @@ yeastweb/media/
 # Code Formatting
 .vscode/
 settings.json
-# IDE
-.vscode/
 
 # Config files
 *.cfg
