@@ -1,3 +1,3 @@
 #!/bin/bash
 cd yeastweb
-py manage.py runserver
+python manage.py runserver
