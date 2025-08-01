@@ -15,7 +15,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 # Quick-start development settings - unsuitable for production
 SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = False
-ALLOWED_HOSTS = ['.localhost', '127.0.0.1']
+ALLOWED_HOSTS = [os.environ['WEBSITE_HOSTNAME']] if 'WEBSITE_HOSTNAME' in os.environ else ['.localhost', '127.0.0.1']
 
 # Custom User with unique uuid
 AUTH_USER_MODEL = 'accounts.CustomUser'
