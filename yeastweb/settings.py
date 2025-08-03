@@ -17,7 +17,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = True
 
 
-ALLOWED_HOSTS = [os.getenv("WEBSITE_HOSTNAME"), "localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["*"]
 
 
 # Custom User with unique uuid
