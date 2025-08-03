@@ -291,6 +291,11 @@
         background-color: #0056b3;
       }
 
+      .button,
+      #list1 {
+        transition: background-color 0.4s ease;
+      }
+
       #currentFileInfo {
         margin-top: 10px;
       }
@@ -437,7 +442,7 @@
               id="startAnalysisButton"
             />
             <div id="list1" class="dropdown-check-list" tabindex="100">
-              <span class="anchor">Select Analysis</span>
+              <span class="anchor">Select Statistics</span>
               <ul class="items">
                 {% for analysis in analyses %}
                 <li>
@@ -530,7 +535,7 @@
         loadImage((currentFileIndex - 1 + totalFiles) % totalFiles);
       });
 
-      // Disable analyse button on submit
+      // Disable analyze button on submit
       document
         .getElementById("preprocessForm")
         .addEventListener("submit", () => {
@@ -539,6 +544,15 @@
           btn.value = "Analyzing...";
           btn.style.pointerEvents = "none";
           btn.style.cursor = "not-allowed";
+          btn.style.backgroundColor = "#0056b3";
+
+          // disable the analysis-plugin dropdown
+          const plugin = document.getElementById("list1");
+          if (plugin) {
+            plugin.style.pointerEvents = "none";
+            plugin.style.opacity = "0.8";
+            plugin.style.backgroundColor = "#0056b3";
+          }
         });
 
       // AJAX load
