@@ -10,6 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 WSGI_APPLICATION = "yeastweb.wsgi.application"
 # Media files directory
 AZ_STORAGE_NAME = os.getenv("AZ_STORAGE_NAME")
+AZ_ACCESS_KEY = os.getenv("AZ_ACCESS_KEY")
 MEDIA_URL = f"https://{AZ_STORAGE_NAME}/media/"
 MEDIA_ROOT = None
 
@@ -115,9 +116,9 @@ DATABASES = {
 # Storage
 STORAGES = {
     "default": {
-        "BACKEND": "storages.backends.azure_storage.AzureStorage",
+        "BACKEND": "core.file.azure.CustomStorage",
         "OPTIONS": {
-            "token_credential": os.getenv("AZ_ACCESS_KEY"),
+            "account_key": AZ_ACCESS_KEY,
             "account_name": AZ_STORAGE_NAME,
             "azure_container": "media",
         },
@@ -125,7 +126,7 @@ STORAGES = {
     "staticfiles": {
         "BACKEND": "storages.backends.azure_storage.AzureStorage",
         "OPTIONS": {
-            "token_credential": os.getenv("AZ_ACCESS_KEY"),
+            "token_credential": AZ_ACCESS_KEY,
             "account_name": AZ_STORAGE_NAME,
             "azure_container": "static",
         },

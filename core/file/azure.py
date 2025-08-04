@@ -1,11 +1,27 @@
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+from storages.backends.azure_storage import AzureStorage
+from azure.storage.blob import generate_blob_sas, BlobSasPermissions
+from datetime import datetime, timedelta
 from PIL import Image
 from io import BytesIO
 import json
 from contextlib import contextmanager
 import os
 import tempfile
+
+
+class CustomStorage(AzureStorage):
+    def url(self, name, expire=3600):
+        sas_token = generate_blob_sas(
+            account_name=self.account_name,
+            account_key=self.account_key,
+            blob_name=name,
+            container_name="media",
+            permission=BlobSasPermissions(read=True),
+            expiry=datetime.utcnow() + timedelta(seconds=expire),
+        )
+        return f"https://{self.account_name}.blob.core.windows.net/media/{name}?{sas_token}"
 
 
 def read_blob_file(path):

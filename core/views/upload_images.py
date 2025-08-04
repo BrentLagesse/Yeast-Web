@@ -76,18 +76,15 @@ def upload_images(request):
             # only valid files make it into the queue
             image_uuids.append(image_uuid)
 
-            # Create a directory for each image based on its UUID
-            output_dir = str(image_uuid) + "/output"
-
             # Extract and save the per-file channel configuration
             dv_file_path = str(instance.file_location)
             channel_config = extract_channel_config(dv_file_path)
-            config_json_path = output_dir + "/channel_config.json"
+            config_json_path = str(image_uuid) + "/channel_config.json"
 
             upload_config(channel_config, config_json_path)
 
             # Define the directory for storing preprocessed images
-            pre_processed_dir = output_dir + "/preprocessed_images"
+            pre_processed_dir = str(image_uuid) + "/preprocessed_images"
             stored_dv_path = str(instance.file_location)
 
             print(f"Processing file: {name}, UUID: {image_uuid}")
