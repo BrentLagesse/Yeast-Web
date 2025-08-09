@@ -48,4 +48,4 @@ jobs:
         app-name: 'Yeast-Analysis'
         slot-name: 'production'
         publish-profile: ${{ secrets.AzureAppService_PublishProfile_c45877adc24743839dfdf36654754871 }}
-        images: 'index.docker.io/${{ secrets.AzureAppService_ContainerUsername_f9f8bba7c9e741018d25b65edb85aeac }}/timhmn/yeast-web:${{ github.sha }}'
+        images: 'index.docker.io/${{ secrets.AzureAppService_ContainerUsername_f9f8bba7c9e741018d25b65edb85aeac }}/yeast-web:${{ github.sha }}'
