@@ -6,6 +6,8 @@ __pycache__/
 db.sqlite3
 media/
 yeast_web/
+yeast-web/
+cache/
 
 # Neural network
 deepretina_final.h5
@@ -25,3 +27,5 @@ settings.json
 
 # Config files
 *.cfg
+
+.github\
