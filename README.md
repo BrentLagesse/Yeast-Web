@@ -10,31 +10,56 @@ The project is a tool to automatically analyze WIDE-fluorescent microscopy image
 | <img width="250" alt="DIC" src="https://github.com/user-attachments/assets/1830b15d-d0cf-4558-ba3f-7d45462e0a13" /> | <img width="250" alt="DAPI" src="https://github.com/user-attachments/assets/0b6dc954-ed78-4abf-b9c9-436ded7551fa" /> | <img width="250" alt="mCherry" src="https://github.com/user-attachments/assets/68767176-2aec-4634-9b74-de8c085e32a4" /> | <img width="250" alt="GFP" src="https://github.com/user-attachments/assets/67e9c4f4-f520-422e-9a0b-48fa9fd370c0" /> |
 
 
-## Installation
+## Installation (Windows)
 You need to make sure git, virtualenv, and python3 (currently using 3.11.5) are installed and are in the $PATH (you can type those command names on the commandline and your computer finds them).
 
-1. Download this link https://drive.google.com/file/d/1moUKvWFYQoWg0z63F0JcSd3WaEPa4UY7/view?usp=sharing and put it in the weights directory under yeastweb/core/weights (might need to create folder manually)
+1. Download the file "deepretina_final.h5" in the link below and place it in the weights directory under yeastweb/core/weights (may need to create the folder manually):
 
-### Running on Windows
-Python version  **NEEDS TO BE 3.11.5** or else it will not work <br/>
+   https://drive.google.com/file/d/1moUKvWFYQoWg0z63F0JcSd3WaEPa4UY7/view?usp=sharing
 
-1. git clone https://github.com/BrentLagesse/Yeast-Web.git #Clone github Repo using
 
-2. curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py #Download pip
+### Environment Setup
 
-3. python get-pip.py
+1. Confirm Python is exactly 3.11.5; Python version  **NEEDS TO BE 3.11.5** or else it will not work:
+   ```bash
+   python --version
 
-4. py -m pip install --upgrade pip
+2. Clone the Github repository:
+   ```bash
+   git clone https://github.com/BrentLagesse/Yeast-Web.git
 
-5. py -m pip install --user virtualenv #install virtual environment
+3. Navigate to the Directory:
+   ```bash
+   cd Yeast-Web
 
-6. py -m venv yeast_web
+4. Create virtual environment:
+    ```bash
+   python -m venv yeast_web
 
-7. yeast_web\Scripts\activate #activate venv
+5. Activate virtual environment:
+    ```bash
+   source .venv/Scripts/activate
 
-Due to the machine learning part only works on certain versions of packages, we have to specifically use them 
+6. Make sure pip exists in the virtual environment:
+    ```bash
+   python -m ensurepip --upgrade
 
-###the easiest way do to do is to delete all your personal pip packages and reinstall them
+7. Upgrade base tools:
+    ```bash
+   python -m pip install --upgrade pip setuptools wheel
+
+8. Check that pip is from the virtual environment:
+   ```bash
+   python -m pip --version   # path should point into Yeast-Web/.venv
+
+
+### Installing Dependencies
+Due to the machine learning part only works on certain versions of packages, we have to specifically use them. The easiest way do to do is to delete all your personal pip packages and reinstall them.
+
+
+
+
+###
 
 ```bash
 # puts all personal packages into deleteRequirements.txt
