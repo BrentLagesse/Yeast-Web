@@ -38,7 +38,7 @@ You need to make sure git, virtualenv, and python3 (currently using 3.11.5) are 
 
 5. Activate virtual environment:
    ```bash
-   source .venv/Scripts/activate
+   source yeast_web/Scripts/activate
    ```
    or
    ```bash
