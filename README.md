@@ -78,7 +78,7 @@ Due to the machine learning part only works on certain versions of packages, we 
    del deleteRequirements.txt
 
 ### Migrations
-You must have your virtual environemnt activated to make the respective migrations. Please refer to the previous steps under **Environment Setup**.
+You must have your virtual environment activated to make the respective migrations. Please refer to the previous steps under **Environment Setup**.
 
 
 1. Delete the local SQLite database (If the file does not exist, no output or a “cannot find path” message is fine):
