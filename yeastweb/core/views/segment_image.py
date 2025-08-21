@@ -1,35 +1,73 @@
-import matplotlib.patheffects as PathEffects
+# =========================
+# Standard library imports
+# =========================
+import csv
+import importlib
+import logging
+import math
+import os
+import pkgutil
+import sys
+import time
+from collections import defaultdict
+from pathlib import Path
+
+# ==========================================================
+# Matplotlib backend (must run BEFORE importing pyplot/etc.)
+# ==========================================================
+os.environ.setdefault("MPLBACKEND", "Agg")
+try:
+    import matplotlib  # noqa: E402
+    matplotlib.use("Agg", force=True)
+except Exception:
+    # In server contexts we prefer to fail closed (headless) vs. crash.
+    pass
+
+# =========================
+# Third-party library imports
+# =========================
+import cv2
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as PathEffects
 import numpy as np
-import os, csv, math, cv2, skimage, logging, time, sys, pkgutil, importlib
-
+import skimage
+from PIL import Image
+from cv2_rolling_ball import subtract_background_rolling_ball
+from mrc import DVFile
+from scipy.spatial.distance import euclidean
 from skimage import io
-from django.conf import settings
 
-from core.models import UploadedImage, SegmentedImage, CellStatistics, Contour
-from core.config import input_dir, output_dir
+# =========================
+# Django imports
+# =========================
+from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.utils import timezone
-from mrc import DVFile
-from pathlib import Path
-from PIL import Image
-from yeastweb.settings import MEDIA_ROOT, MEDIA_URL, BASE_DIR
-from core.config import input_dir
-from core.config import get_channel_config_for_uuid
-from core.config import DEFAULT_PROCESS_CONFIG
 
-from core.image_processing import  load_image, preprocess_image_to_gray, ensure_3channel_bgr
-from core.contour_processing import find_contours, merge_contour, get_neighbor_count, get_contour_center
+# =========================
+# Local application imports
+# =========================
+from yeastweb.settings import BASE_DIR, MEDIA_ROOT, MEDIA_URL
+from core.config import (
+    DEFAULT_PROCESS_CONFIG,
+    get_channel_config_for_uuid,
+    input_dir,
+    output_dir,
+)
+from core.models import CellStatistics, Contour, SegmentedImage, UploadedImage
+from core.image_processing import (
+    ensure_3channel_bgr,
+    load_image,
+    preprocess_image_to_gray,
+)
+from core.contour_processing import (
+    find_contours,
+    get_contour_center,
+    get_neighbor_count,
+    merge_contour,
+)
 from core.cell_analysis import Analysis
-
-
-
-from scipy.spatial.distance import euclidean  
-from collections import defaultdict
-
-from scipy.spatial.distance import euclidean
-from cv2_rolling_ball import subtract_background_rolling_ball
 
 # Configure logging
 logging.basicConfig(

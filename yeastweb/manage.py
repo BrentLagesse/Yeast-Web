@@ -3,6 +3,13 @@
 import os
 import sys
 
+# Force headless Matplotlib BEFORE anything can import pyplot
+os.environ.setdefault("MPLBACKEND", "Agg")
+try:
+    import matplotlib
+    matplotlib.use("Agg", force=True)
+except Exception:
+    pass
 
 def main():
     """Run administrative tasks."""

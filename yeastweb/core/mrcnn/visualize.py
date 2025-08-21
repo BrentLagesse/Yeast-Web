@@ -7,19 +7,51 @@ Licensed under the MIT License (see LICENSE for details)
 Written by Waleed Abdulla
 """
 
-import os
-import sys
-import logging
-import random
-import itertools
+# =========================
+# Standard library imports
+# =========================
 import colorsys
+import itertools
+import os
+import random
+import sys
 
+# ==========================================================
+# Matplotlib backend (must be set BEFORE importing pyplot)
+# ==========================================================
+os.environ.setdefault("MPLBACKEND", "Agg")
+try:
+    import matplotlib  # noqa: E402
+    matplotlib.use("Agg", force=True)
+except Exception:
+    # Prefer headless over crashing in server contexts.
+    pass
+
+# =========================
+# Third-party imports
+# =========================
 import numpy as np
-from skimage.measure import find_contours
 import matplotlib.pyplot as plt
-from matplotlib import patches,  lines
+from matplotlib import patches, lines
 from matplotlib.patches import Polygon
+from skimage.measure import find_contours
 import IPython.display
+
+# =========================
+# Local imports
+# =========================
+ROOT_DIR = os.path.abspath("../")
+sys.path.append(ROOT_DIR)
+from mrcnn import utils
+
+# Only show figures when explicitly allowed; otherwise close them.
+# This prevents Tkinter/GUI usage on the server.
+ALLOW_GUI = os.environ.get("ALLOW_GUI") == "1"
+def maybe_show():
+    if ALLOW_GUI:
+        plt.show()
+    else:
+        plt.close('all')
 
 # Root directory of the project
 ROOT_DIR = os.path.abspath("../")
@@ -54,7 +86,7 @@ def display_images(images, titles=None, cols=4, cmap=None, norm=None,
         plt.imshow(image.astype(np.uint8), cmap=cmap,
                    norm=norm, interpolation=interpolation)
         i += 1
-    plt.show()
+    maybe_show()
 
 
 def random_colors(N, bright=True):
@@ -166,7 +198,7 @@ def display_instances(image, boxes, masks, class_ids, class_names,
             ax.add_patch(p)
     ax.imshow(masked_image.astype(np.uint8))
     if auto_show:
-        plt.show()
+        maybe_show()
 
 
 def display_differences(image,
