@@ -36,9 +36,7 @@ def display_cell(request, uuids):
             # get your channel-to-index mapping
             channel_config = get_channel_config_for_uuid(uuid)
             # sort by the saved index → this yields e.g. ["DIC","DAPI","mCherry","GFP"]
-            detected = [
-                ch for ch, _ in sorted(channel_config.items(), key=lambda t: t[1])
-            ]
+            detected = [ch for ch, _ in sorted(channel_config.items(), key=lambda t: t[1])]
 
             # Append file info for the sidebar, INCLUDING the channel pills
             file_list.append(
@@ -73,13 +71,9 @@ def display_cell(request, uuids):
             # Get the segmented image details
             cell_image = SegmentedImage.objects.get(UUID=uuid)
 
-            if (
-                cell_image.user_id != request.user.id and request.user.id
-            ) or (  # this is not your image OR
-                not request.user.id
-                and cell_image.user_id
-                != get_user_model().objects.get(username="guest").id
-            ):  # you viewing your guest image
+            if ((cell_image.user_id != request.user.id and request.user.id) or  # this is not your image OR
+                    (not request.user.id and cell_image.user_id != get_user_model().objects.get(
+                        username='guest').id)):  # you viewing your guest image
                 print(cell_image.user_id)
                 print(request.user.id)
                 return HttpResponse("Unauthorized", status=401)
@@ -117,20 +111,25 @@ def display_cell(request, uuids):
                         segmented_image=cell_image, cell_id=i
                     )
                     statistics[str(i)] = {
-                        "distance": cell_stat.distance,
-                        "line_gfp_intensity": cell_stat.line_gfp_intensity,
-                        "nucleus_intensity_sum": cell_stat.nucleus_intensity_sum,
-                        "cellular_intensity_sum": cell_stat.cellular_intensity_sum,
-                        "green_red_intensity": cell_stat.green_red_intensity,
-                        "cytoplasmic_intensity": cell_stat.cytoplasmic_intensity,
-                        "cellular_intensity_sum_DAPI": cell_stat.cellular_intensity_sum_DAPI,
-                        "nucleus_intensity_sum_DAPI": cell_stat.nucleus_intensity_sum_DAPI,
-                        "cytoplasmic_intensity_DAPI": cell_stat.cytoplasmic_intensity_DAPI,
+                        'distance': cell_stat.distance,
+                        'line_gfp_intensity': cell_stat.line_gfp_intensity,
+                        'nucleus_intensity_sum': cell_stat.nucleus_intensity_sum,
+                        'cellular_intensity_sum': cell_stat.cellular_intensity_sum,
+                        'green_red_intensity_1': cell_stat.green_red_intensity_1,
+                        'green_red_intensity_2': cell_stat.green_red_intensity_2,
+                        'green_red_intensity_3': cell_stat.green_red_intensity_3,
+                        'cytoplasmic_intensity': cell_stat.cytoplasmic_intensity,
+                        'cellular_intensity_sum_DAPI': cell_stat.cellular_intensity_sum_DAPI,
+                        'nucleus_intensity_sum_DAPI': cell_stat.nucleus_intensity_sum_DAPI,
+                        'cytoplasmic_intensity_DAPI': cell_stat.cytoplasmic_intensity_DAPI,
                     }
                 except CellStatistics.DoesNotExist:
-                    statistics[str(i)] = (
-                        None  # In case statistics are missing for a cell
-                    )
+                    statistics[str(i)] = None  # In case statistics are missing for a cell
+
+            export_format = request.GET.get('_export', None)
+            if TableExport.is_valid_format(export_format) and cell_table:
+                exporter = TableExport(export_format,cell_table)
+                return exporter.response(f"table.{export_format}")
 
             # Store all image details and statistics for this UUID
             all_files_data[str(uuid)] = {

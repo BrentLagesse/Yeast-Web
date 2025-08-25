@@ -1,14 +1,49 @@
-import matplotlib.patheffects as PathEffects
+# =========================
+# Standard library imports
+# =========================
+import csv
+import importlib
+import logging
+import math
+import os
+import pkgutil
+import sys
+import time
+from collections import defaultdict
+from pathlib import Path
+
+# ==========================================================
+# Matplotlib backend (must run BEFORE importing pyplot/etc.)
+# ==========================================================
+os.environ.setdefault("MPLBACKEND", "Agg")
+try:
+    import matplotlib  # noqa: E402
+    matplotlib.use("Agg", force=True)
+except Exception:
+    # In server contexts we prefer to fail closed (headless) vs. crash.
+    pass
+
+# =========================
+# Third-party library imports
+# =========================
+import cv2
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as PathEffects
 import numpy as np
 import os, csv, math, cv2, skimage, logging, time, sys, pkgutil, importlib
 from io import StringIO
 
+import skimage
+from PIL import Image
+from cv2_rolling_ball import subtract_background_rolling_ball
+from mrc import DVFile
+from scipy.spatial.distance import euclidean
 from skimage import io
-from django.conf import settings
 
-from core.models import UploadedImage, SegmentedImage, CellStatistics, Contour
-from core.config import input_dir, output_dir
+# =========================
+# Django imports
+# =========================
+from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.utils import timezone
@@ -33,6 +68,28 @@ from core.contour_processing import (
     get_neighbor_count,
     get_contour_center,
 )
+# =========================
+# Local application imports
+# =========================
+from yeastweb.settings import BASE_DIR, MEDIA_ROOT, MEDIA_URL
+from core.config import (
+    DEFAULT_PROCESS_CONFIG,
+    get_channel_config_for_uuid,
+    input_dir,
+    output_dir,
+)
+from core.models import CellStatistics, Contour, SegmentedImage, UploadedImage
+from core.image_processing import (
+    ensure_3channel_bgr,
+    load_image,
+    preprocess_image_to_gray,
+)
+from core.contour_processing import (
+    find_contours,
+    get_contour_center,
+    get_neighbor_count,
+    merge_contour,
+)
 from core.cell_analysis import Analysis
 from core.file.azure import temp_blob, upload_image, upload_figure
 
@@ -43,11 +100,15 @@ from collections import defaultdict
 from scipy.spatial.distance import euclidean
 from cv2_rolling_ball import subtract_background_rolling_ball
 
+
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("debug.log"), logging.StreamHandler()],
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("debug.log"),
+        logging.StreamHandler()
+    ]
 )
 
 
@@ -101,19 +162,13 @@ def import_analyses(path: str, selected_analysis: list) -> list:
 
     return analyses
 
-
 def get_stats(cp, conf, selected_analysis):
     # loading configuration
-    kernel_size_input, mcherry_line_width_input, kernel_deviation_input, choice_var = (
-        set_options(conf)
-    )
+    kernel_size_input, mcherry_line_width_input,kernel_deviation_input, choice_var = set_options(conf)
 
-    images = load_image(cp, output_dir)
-
+    images = load_image(cp,output_dir)
     # gray scale conversion and blurring
-    preprocessed_images = preprocess_image_to_gray(
-        images, kernel_deviation_input, kernel_size_input
-    )
+    preprocessed_images = preprocess_image_to_gray(images, kernel_deviation_input, kernel_size_input)
 
     contours_data = find_contours(preprocessed_images)
 
@@ -155,23 +210,25 @@ def get_stats(cp, conf, selected_analysis):
     edit_GFP_img = ensure_3channel_bgr(edit_GFP_img)
     edit_DAPI_img = ensure_3channel_bgr(edit_DAPI_img)
 
-    best_contour = merge_contour(
-        contours_data["bestContours"], contours_data["contours"]
-    )
-    best_contour_dapi = merge_contour(
-        contours_data["bestContours_dapi"], contours_data["contours_dapi"]
-    )
-
+    best_contour_dapi = contours_data['contours_dapi'][contours_data['bestContours_dapi'][0]]
     best_contour_data = {
-        "mCherry": best_contour,
         "DAPI": best_contour_dapi,
     }
 
+    for i in range(0,len(contours_data['dot_contours'])):
+        area = cv2.contourArea(contours_data['dot_contours'][i])
+        setattr(cp, f'red_contour_{i+1}_size', area)
+
+    cp.blue_contour_size = cv2.contourArea(best_contour_dapi)
+
     # Use white contour for both images (mCherry and GFP)
-    cv2.drawContours(edit_mCherry_img, [best_contour], 0, (255, 255, 255), 1)
-    cv2.drawContours(edit_GFP_img, [best_contour], 0, (255, 255, 255), 1)
-    if best_contour_dapi is not None:
-        cv2.drawContours(edit_DAPI_img, [best_contour_dapi], 0, (255, 255, 255), 1)
+    cv2.drawContours(edit_mCherry_img, contours_data['dot_contours'], -1, (0, 0, 255),1)
+
+    cv2.drawContours(edit_GFP_img, contours_data['dot_contours'], -1, (0, 0, 255),1)
+    cv2.drawContours(edit_GFP_img, [best_contour_dapi], 0, (255, 0, 0), 1)
+
+    cv2.drawContours(edit_DAPI_img, contours_data['dot_contours'],-1, (0, 0, 255), 1)
+    cv2.drawContours(edit_DAPI_img, [best_contour_dapi],0, (255, 0, 0), 1)
 
     import_path = BASE_DIR / "core/cell_analysis"
     analyses = import_analyses(import_path, selected_analysis)
@@ -197,9 +254,7 @@ def get_stats(cp, conf, selected_analysis):
     )
 
 
-"""Get file size of a directory recursively"""
-
-
+'''Get file size of a directory recursively'''
 def get_dir_size(path):
     """
     Calculate the size of a directory recursively
@@ -221,10 +276,7 @@ def get_dir_size(path):
 
     return total
 
-
-"""Creates image "segments" from the desired image"""
-
-
+'''Creates image "segments" from the desired image'''
 def segment_image(request, uuids):
     """
     Handles segmentation cell_analysis for multiple images passed as UUIDs.
@@ -335,9 +387,7 @@ def segment_image(request, uuids):
                         # find the closest neighbor by number of pixels close by
                         top_val = list(sorted_dict.items())[0][1]
                         second_val = list(sorted_dict.items())[1][1]
-                        if (
-                            second_val > 0.5 * top_val
-                        ):  # things got confusing, so we throw it and its neighbor out
+                        if second_val > 0.5 * top_val:    # things got confusing, so we throw it and its neighbor out
                             single_cell_list.append(int(i))
                             for cluster_cell in neighbor_count:
                                 single_cell_list.append(int(cluster_cell))
@@ -400,16 +450,9 @@ def segment_image(request, uuids):
                     plt.imshow(mcherry_image_gray, cmap="gray")
                     plt.show()
 
-                # mcherry_image_gray = cv2.GaussianBlur(mcherry_image_gray, (1, 1), 0)
-                mcherry_image_ret, mcherry_image_thresh = cv2.threshold(
-                    mcherry_image_gray,
-                    0,
-                    1,
-                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C | cv2.THRESH_OTSU,
-                )
-                mcherry_image_cont, mcherry_image_h = cv2.findContours(
-                    mcherry_image_thresh, 1, 2
-                )
+                #mcherry_image_gray = cv2.GaussianBlur(mcherry_image_gray, (1, 1), 0)
+                mcherry_image_ret, mcherry_image_thresh = cv2.threshold(mcherry_image_gray, 0, 1, cv2.ADAPTIVE_THRESH_GAUSSIAN_C | cv2.THRESH_OTSU)
+                mcherry_image_cont, mcherry_image_h = cv2.findContours(mcherry_image_thresh, 1, 2)
 
                 if debug:
                     cv2.drawContours(image, mcherry_image_cont, -1, 255, 1)
@@ -421,16 +464,12 @@ def segment_image(request, uuids):
                 # 921,800
 
                 min_mcherry_distance = dict()
-                min_mcherry_loc = (
-                    dict()
-                )  # maps an mcherry dot to its closest mcherry dot in terms of cell id
+                min_mcherry_loc = dict()   # maps an mcherry dot to its closest mcherry dot in terms of cell id
                 for cnt1 in mcherry_image_cont:
                     try:
                         contourArea = cv2.contourArea(cnt1)
-                        if (
-                            contourArea > 100000
-                        ):  # test for the big box, TODO: fix this to be adaptive
-                            print("threw out the bounding box for the entire image")
+                        if contourArea > 100000:   #test for the big box, TODO: fix this to be adaptive
+                            print('threw out the bounding box for the entire image')
                             continue
                         coordinate = get_contour_center(cnt1)
                         # These are opposite of what we would expect
@@ -453,57 +492,34 @@ def segment_image(request, uuids):
                             continue  # no moment found
                         if int(seg[c2x][c2y]) == 0:
                             continue
-                        if (
-                            seg[c1x][c1y] == seg[c2x][c2y]
-                        ):  # these are ihe same cell already -- Maybe this is ok?  TODO:  Figure out hwo to handle this because some of the mcherry signals are in the same cell
+                        if seg[c1x][c1y] == seg[c2x][c2y]:   #these are ihe same cell already -- Maybe this is ok?  TODO:  Figure out hwo to handle this because some of the mcherry signals are in the same cell
                             continue
                         # find the closest point to each center
                         d = math.sqrt(pow(c1x - c2x, 2) + pow(c1y - c2y, 2))
                         if min_mcherry_distance.get(c_id) == None:
                             min_mcherry_distance[c_id] = d
                             min_mcherry_loc[c_id] = int(seg[c2x][c2y])
-                            lines_to_draw[c_id] = ((c1y, c1x), (c2y, c2x))
+                            lines_to_draw[c_id] = ((c1y,c1x), (c2y, c2x))
                         else:
                             if d < min_mcherry_distance[c_id]:
                                 min_mcherry_distance[c_id] = d
                                 min_mcherry_loc[c_id] = int(seg[c2x][c2y])
-                                lines_to_draw[c_id] = (
-                                    (c1y, c1x),
-                                    (c2y, c2x),
-                                )  # flip it back here
+                                lines_to_draw[c_id] = ((c1y, c1x), (c2y, c2x))  #flip it back here
                             elif d == min_mcherry_distance[c_id]:
-                                print(
-                                    "This is unexpected, we had two mcherry red dots in cells {} and {} at the same distance from (".format(
-                                        seg[c1x][c1y], seg[c2x][c2y]
-                                    )
-                                    + str(min_mcherry_loc[c_id])
-                                    + ", "
-                                    + str((c2x, c2y))
-                                    + ") to "
-                                    + str((c1x, c1y))
-                                    + " at a distance of "
-                                    + str(d)
-                                )
+                                print('This is unexpected, we had two mcherry red dots in cells {} and {} at the same distance from ('.format(seg[c1x][c1y], seg[c2x][c2y]) + str(min_mcherry_loc[c_id]) + ', ' + str((c2x, c2y)) + ') to ' + str((c1x, c1y)) + ' at a distance of ' + str(d))
 
             for k, v in closest_neighbors.items():
-                if v in closest_neighbors:  # check to see if v could be a mutual pair
-                    if (
-                        int(v) in ignore_list
-                    ):  # if we have already paired this one, throw it out
+                if v in closest_neighbors:      # check to see if v could be a mutual pair
+                    if int(v) in ignore_list:    # if we have already paired this one, throw it out
                         single_cell_list.append(int(k))
                         continue
 
-                    if (
-                        closest_neighbors[int(v)] == int(k)
-                        and int(k) not in ignore_list
-                    ):  # closest neighbors are reciprocal
-                        # TODO:  set them to all be the same cell
+                    if closest_neighbors[int(v)] == int(k) and int(k) not in ignore_list:  # closest neighbors are reciprocal
+                        #TODO:  set them to all be the same cell
                         to_update = np.where(seg == v)
                         ignore_list.append(int(v))
                         if resolve_cells_using_spc110:
-                            if (
-                                int(v) in min_mcherry_loc
-                            ):  # if we merge them here, we don't need to do it with mcherry
+                            if int(v) in min_mcherry_loc:    #if we merge them here, we don't need to do it with mcherry
                                 del min_mcherry_loc[int(v)]
                             if int(k) in min_mcherry_loc:
                                 del min_mcherry_loc[int(k)]
@@ -518,19 +534,12 @@ def segment_image(request, uuids):
 
             if resolve_cells_using_spc110:
                 for c_id, nearest_cid in min_mcherry_loc.items():
-                    if (
-                        int(c_id) in ignore_list
-                    ):  # if we have already paired this one, ignore it
+                    if int(c_id) in ignore_list:    # if we have already paired this one, ignore it
                         continue
-                    if (
-                        int(nearest_cid) in min_mcherry_loc
-                    ):  # make sure teh reciprocal exists
-                        if (
-                            min_mcherry_loc[int(nearest_cid)] == int(c_id)
-                            and int(c_id) not in ignore_list
-                        ):  # if it is mutual
-                            # print('added a cell pair in image {} using the mcherry technique {} and {}'.format(image_name, int(nearest_cid),
-                            # int(c_id)))
+                    if int(nearest_cid) in min_mcherry_loc:  #make sure teh reciprocal exists
+                        if min_mcherry_loc[int(nearest_cid)] == int(c_id) and int(c_id) not in ignore_list:   # if it is mutual
+                            #print('added a cell pair in image {} using the mcherry technique {} and {}'.format(image_name, int(nearest_cid),
+                                                                                                    #int(c_id)))
                             if int(c_id) in single_cell_list:
                                 single_cell_list.remove(int(c_id))
                             if int(nearest_cid) in single_cell_list:
@@ -541,11 +550,7 @@ def segment_image(request, uuids):
                             for update in zip(to_update[0], to_update[1]):
                                 seg[update[0]][update[1]] = c_id
                         elif int(c_id) not in ignore_list:
-                            print(
-                                "could not add cell pair because cell {} and cell {} were not mutually closest".format(
-                                    nearest_cid, int(v)
-                                )
-                            )
+                            print('could not add cell pair because cell {} and cell {} were not mutually closest'.format(nearest_cid, int(v)))
                             single_cell_list.append(int(k))
 
             # remove single cells or confusing cells
@@ -848,11 +853,14 @@ def segment_image(request, uuids):
                 cell_id=cell_number,
                 defaults={
                     # Cell statistics numerical defaults
-                    "distance": 0.0,
-                    "line_gfp_intensity": 0.0,
-                    "nucleus_intensity_sum": 0.0,
-                    "cellular_intensity_sum": 0.0,
-                    "green_red_intensity": 0.0,
+                    'distance': 0.0,
+                    'line_gfp_intensity': 0.0,
+                    'nucleus_intensity_sum': 0.0,
+                    'cellular_intensity_sum': 0.0,
+                    'green_red_intensity_1': 0.0,
+                    'green_red_intensity_2': 0.0,
+                    'green_red_intensity_3': 0.0,
+
                     # Store file path information
                     "dv_file_path": DV_path,
                     "image_name": DV_Name + ".dv",
