@@ -1,0 +1,12 @@
+ services:
+  django-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: django-docker
+    command:
+      - /bin/sh
+      - '-c'
+      - '/app/start.sh'
+    ports:
+      - "8000:8000"

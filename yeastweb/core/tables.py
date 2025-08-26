@@ -18,9 +18,9 @@ class CellTable(tables.Table):
     red_contour_2_size = tables.Column(verbose_name='Red Contour 2 Size')
     red_contour_3_size = tables.Column(verbose_name='Red Contour 3 Size')
 
-    red_blue_intensity_1 = NumberColumn(verbose_name='Red in Blue Intensity 1')
-    red_blue_intensity_2 = NumberColumn(verbose_name='Red in Blue Intensity 2')
-    red_blue_intensity_3 = NumberColumn(verbose_name='Red in Blue Intensity 3')
+    #red_blue_intensity_1 = NumberColumn(verbose_name='Red in Blue Intensity 1')
+    #red_blue_intensity_2 = NumberColumn(verbose_name='Red in Blue Intensity 2')
+    #red_blue_intensity_3 = NumberColumn(verbose_name='Red in Blue Intensity 3')
 
     red_intensity_1 = NumberColumn(verbose_name='Red in Red Intensity 1')
     red_intensity_2 = NumberColumn(verbose_name='Red in Red Intensity 2')
@@ -44,7 +44,7 @@ class CellTable(tables.Table):
         model = CellStatistics
         fields = ('cell_id','distance','line_gfp_intensity','blue_contour_size',
                   'red_contour_1_size','red_contour_2_size','red_contour_3_size',
-                  'red_blue_intensity_1','red_blue_intensity_2','red_blue_intensity_3',
+                  #'red_blue_intensity_1','red_blue_intensity_2','red_blue_intensity_3',
                   'red_intensity_1','red_intensity_2','red_intensity_3',
                   'green_intensity_1','green_intensity_2','green_intensity_3',
                   #'green_red_intensity_1','green_red_intensity_2','green_red_intensity_3','nucleus_intensity_sum',
