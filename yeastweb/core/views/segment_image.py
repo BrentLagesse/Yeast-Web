@@ -51,6 +51,7 @@ from django.utils import timezone
 # Local application imports
 # =========================
 from yeastweb.settings import BASE_DIR, MEDIA_ROOT, MEDIA_URL
+from .utils import write_progress
 from core.config import (
     DEFAULT_PROCESS_CONFIG,
     get_channel_config_for_uuid,
@@ -81,20 +82,7 @@ logging.basicConfig(
     ]
 )
 
-def _progress_path(key: str) -> Path:
-    p = Path(MEDIA_ROOT) / 'progress'
-    p.mkdir(parents=True, exist_ok=True)
-    # Hash the key to avoid path traversal and long filenames
-    digest = hashlib.sha256(key.encode('utf-8')).hexdigest()
-    return p / f"{digest}.json"
-
-
-def _write_progress(uuids: str, phase: str) -> None:
-    try:
-        _progress_path(uuids).write_text(json.dumps({"phase": phase}))
-    except Exception:
-        # Best-effort only; don't break processing if progress can't be written
-        pass
+## progress helpers moved to core.views.utils
 
 def set_options(opt):
     """
@@ -707,7 +695,7 @@ def segment_image(request, uuids):
 
         # Mark accurate phase for UI only if user selected analyses
         if selected_analysis:
-            _write_progress(uuids, "Calculating Statistics")
+            write_progress(uuids, "Calculating Statistics")
 
         # For each cell_number in the segmentation, create/fetch a CellStatistics object
         # and call get_stats so it can mutate the fields on cp.

@@ -471,7 +471,8 @@
         // Reset server-side phase immediately to avoid stale reads
         try {
           const csrfToken = document.querySelector('#preprocessForm [name=csrfmiddlewaretoken]')?.value;
-          await fetch(`/api/progress/${encodeURIComponent("{{ uuids|escapejs }}")}/set/`, {
+          const setUrl = new URL(`/api/progress/${encodeURIComponent("{{ uuids|escapejs }}")}/set/`, window.location.origin);
+          await fetch(setUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -488,7 +489,8 @@
         const startPolling = () => {
           const poll = async () => {
             try {
-              const resp = await fetch(`/api/progress/${encodeURIComponent(uuids)}/`, { cache: 'no-store' });
+              const pollUrl = new URL(`/api/progress/${encodeURIComponent(uuids)}/`, window.location.origin);
+              const resp = await fetch(pollUrl, { cache: 'no-store' });
               if (!resp.ok) return;
               const data = await resp.json();
               if (data && data.phase && textEl) {

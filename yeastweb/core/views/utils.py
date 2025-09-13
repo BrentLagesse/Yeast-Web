@@ -1,5 +1,8 @@
 import cv2
-from pathlib import Path    
+import hashlib
+import json
+from pathlib import Path
+from yeastweb.settings import MEDIA_ROOT
 
 # base_path = "data/images/"
 # new_path = "data/ims/"
@@ -17,3 +20,19 @@ def tif_to_jpg(tif_path :Path, output_dir :Path) -> Path:
     jpg_path = Path(output_dir / temp)
     cv2.imwrite(str(jpg_path), read,[int(cv2.IMWRITE_JPEG_QUALITY), 100])
     return jpg_path
+
+
+# Progress helpers (shared across views)
+def progress_path(key: str) -> Path:
+    p = Path(MEDIA_ROOT) / 'progress'
+    p.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256(key.encode('utf-8')).hexdigest()
+    return p / f"{digest}.json"
+
+
+def write_progress(key: str, phase: str) -> None:
+    try:
+        progress_path(key).write_text(json.dumps({"phase": phase}))
+    except Exception:
+        # Best-effort only; never break main processing on failure
+        pass

@@ -367,7 +367,8 @@
         (async () => {
             try {
                 const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-                await fetch(`/api/progress/${encodeURIComponent("{{ progress_key|escapejs }}")}/set/`, {
+                const setUrl = new URL(`/api/progress/${encodeURIComponent("{{ progress_key|escapejs }}")}/set/`, window.location.origin);
+                await fetch(setUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -385,7 +386,8 @@
         const startPolling = () => {
             const poll = async () => {
                 try {
-                    const resp = await fetch(`/api/progress/${encodeURIComponent(progressKey)}/`, { cache: 'no-store' });
+                    const pollUrl = new URL(`/api/progress/${encodeURIComponent(progressKey)}/`, window.location.origin);
+                    const resp = await fetch(pollUrl, { cache: 'no-store' });
                     if (!resp.ok) return;
                     const data = await resp.json();
                     if (data && data.phase) {

@@ -10,7 +10,7 @@ import sys, pkgutil, importlib, inspect
 from core.models import DVLayerTifPreview, UploadedImage
 from core.mrcnn.my_inference import predict_images
 from core.mrcnn.preprocess_images import preprocess_images
-from .utils import tif_to_jpg
+from .utils import tif_to_jpg, write_progress, progress_path
 from core.metadata_processing.dv_channel_parser import extract_channel_config
 from core.cell_analysis import Analysis
 
@@ -52,26 +52,10 @@ def load_analyses(path:str) -> list:
     return analyses
 
 
-def _progress_path(key: str) -> Path:
-    p = Path(MEDIA_ROOT) / 'progress'
-    p.mkdir(parents=True, exist_ok=True)
-    # Hash the key to avoid path traversal and long filenames
-    digest = hashlib.sha256(key.encode('utf-8')).hexdigest()
-    return p / f"{digest}.json"
-
-
-def _write_progress(uuids: str, phase: str) -> None:
-    try:
-        _progress_path(uuids).write_text(json.dumps({"phase": phase}))
-    except Exception:
-        # Best-effort only; don't break processing if progress can't be written
-        pass
-
-
 @require_GET
 def get_progress(request, uuids):
     try:
-        path = _progress_path(uuids)
+        path = progress_path(uuids)
         if path.exists():
             data = json.loads(path.read_text() or '{}')
             return JsonResponse({"phase": data.get("phase", "idle")})
@@ -144,13 +128,13 @@ def pre_process_step(request, uuids):
             out_dir = Path(MEDIA_ROOT) / image_uuid
 
             if not preprocess_marked:
-                _write_progress(uuids, "Preprocessing Images")
+                write_progress(uuids, "Preprocessing Images")
                 preprocess_marked = True
             prep_path, prep_list = preprocess_images(image_uuid, img_obj, out_dir)
             tif_to_jpg(Path(prep_path), out_dir)
 
             if not detection_marked:
-                _write_progress(uuids, "Detecting Cells")
+                write_progress(uuids, "Detecting Cells")
                 detection_marked = True
             predict_images(prep_path, prep_list, out_dir)
 
@@ -186,7 +170,7 @@ def set_progress(request, key):
         body = {}
     phase = body.get('phase', 'idle')
     try:
-        _write_progress(key, phase)
+        write_progress(key, phase)
         return JsonResponse({"status": "ok"})
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)

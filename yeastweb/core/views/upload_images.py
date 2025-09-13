@@ -3,7 +3,7 @@ from django.shortcuts import render, redirect
 from django.urls import reverse_lazy
 from core.forms import UploadImageForm
 from core.models import UploadedImage, DVLayerTifPreview
-from .utils import tif_to_jpg
+from .utils import tif_to_jpg, write_progress
 from pathlib import Path    
 from yeastweb.settings import MEDIA_ROOT
 from .variables import PRE_PROCESS_FOLDER_NAME
@@ -18,21 +18,6 @@ from django.contrib import messages
 from django.http import JsonResponse
 from ..metadata_processing.dv_channel_parser import extract_channel_config, is_valid_dv_file, get_dv_layer_count
 
-
-def _progress_path(key: str) -> Path:
-    p = Path(MEDIA_ROOT) / 'progress'
-    p.mkdir(parents=True, exist_ok=True)
-    import hashlib
-    digest = hashlib.sha256(key.encode('utf-8')).hexdigest()
-    return p / f"{digest}.json"
-
-
-def _write_progress(key: str, phase: str) -> None:
-    try:
-        _progress_path(key).write_text(json.dumps({"phase": phase}))
-    except Exception:
-        # Best-effort only; never block uploads if this fails
-        pass
 
 def upload_images(request):
     """
@@ -108,7 +93,7 @@ def upload_images(request):
 
             # Apply the preprocessing step to each image
             if not preprocess_marked:
-                _write_progress(progress_key, "Preprocessing Images")
+                write_progress(progress_key, "Preprocessing Images")
                 preprocess_marked = True
             generate_tif_preview_images(stored_dv_path, pre_processed_dir, instance, 4)
 
