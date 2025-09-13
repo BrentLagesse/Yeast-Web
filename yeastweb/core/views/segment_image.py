@@ -11,6 +11,7 @@ import sys
 import time
 from collections import defaultdict
 from pathlib import Path
+import json
 
 # ==========================================================
 # Matplotlib backend (must run BEFORE importing pyplot/etc.)
@@ -78,6 +79,19 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+
+def _progress_path(uuids: str) -> Path:
+    p = Path(MEDIA_ROOT) / 'progress'
+    p.mkdir(parents=True, exist_ok=True)
+    return p / f"{uuids}.json"
+
+
+def _write_progress(uuids: str, phase: str) -> None:
+    try:
+        _progress_path(uuids).write_text(json.dumps({"phase": phase}))
+    except Exception:
+        # Best-effort only; don't break processing if progress can't be written
+        pass
 
 def set_options(opt):
     """
@@ -687,6 +701,9 @@ def segment_image(request, uuids):
             'arrested': configuration["arrested"],
             'analysis' : selected_analysis,
         }
+
+        # Mark accurate phase for UI
+        _write_progress(uuids, "Calculating Statistics")
 
         # For each cell_number in the segmentation, create/fetch a CellStatistics object
         # and call get_stats so it can mutate the fields on cp.

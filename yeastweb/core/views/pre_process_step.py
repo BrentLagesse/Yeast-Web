@@ -2,7 +2,7 @@ from django.shortcuts import get_object_or_404, get_list_or_404, redirect
 from django.http import JsonResponse
 from django.template.response import TemplateResponse
 from django.utils import inspect
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
 import sys, pkgutil, importlib, inspect
@@ -49,6 +49,32 @@ def load_analyses(path:str) -> list:
                 mod_name + " was not an instance of Analysis"
 
     return analyses
+
+
+def _progress_path(uuids: str) -> Path:
+    p = Path(MEDIA_ROOT) / 'progress'
+    p.mkdir(parents=True, exist_ok=True)
+    return p / f"{uuids}.json"
+
+
+def _write_progress(uuids: str, phase: str) -> None:
+    try:
+        _progress_path(uuids).write_text(json.dumps({"phase": phase}))
+    except Exception:
+        # Best-effort only; don't break processing if progress can't be written
+        pass
+
+
+@require_GET
+def get_progress(request, uuids):
+    try:
+        path = _progress_path(uuids)
+        if path.exists():
+            data = json.loads(path.read_text() or '{}')
+            return JsonResponse({"phase": data.get("phase", "idle")})
+        return JsonResponse({"phase": "idle"})
+    except Exception as e:
+        return JsonResponse({"phase": "idle"})
 
 
 def pre_process_step(request, uuids):
@@ -106,12 +132,23 @@ def pre_process_step(request, uuids):
 
         request.session['selected_analysis'] = selected_analysis  # save selected analysis to session
 
+        # Track when we first enter phases to mark progress once
+        preprocess_marked = False
+        detection_marked = False
+
         for image_uuid in uuid_list:
             img_obj = get_object_or_404(UploadedImage, uuid=image_uuid)
             out_dir = Path(MEDIA_ROOT) / image_uuid
 
+            if not preprocess_marked:
+                _write_progress(uuids, "Preprocessing Images")
+                preprocess_marked = True
             prep_path, prep_list = preprocess_images(image_uuid, img_obj, out_dir)
             tif_to_jpg(Path(prep_path), out_dir)
+
+            if not detection_marked:
+                _write_progress(uuids, "Detecting Cells")
+                detection_marked = True
             predict_images(prep_path, prep_list, out_dir)
 
         return redirect(f'/image/{uuids}/convert/')
