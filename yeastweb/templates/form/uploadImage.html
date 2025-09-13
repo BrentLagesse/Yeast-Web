@@ -366,7 +366,12 @@
         // Reset server-side phase immediately so polling doesn't read stale values
         (async () => {
             try {
-                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                const csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+                const csrfToken = csrfEl?.value;
+                if (!csrfToken) {
+                    console.warn('CSRF token not found; skipping progress reset.');
+                    return;
+                }
                 const setUrl = new URL(`/api/progress/${encodeURIComponent("{{ progress_key|escapejs }}")}/set/`, window.location.origin);
                 await fetch(setUrl, {
                     method: 'POST',

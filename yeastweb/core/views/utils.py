@@ -33,6 +33,6 @@ def progress_path(key: str) -> Path:
 def write_progress(key: str, phase: str) -> None:
     try:
         progress_path(key).write_text(json.dumps({"phase": phase}))
-    except Exception:
+    except (OSError, IOError, PermissionError):
         # Best-effort only; never break main processing on failure
         pass

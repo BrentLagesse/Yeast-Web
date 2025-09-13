@@ -17,6 +17,7 @@ from core.cell_analysis import Analysis
 from yeastweb.settings import MEDIA_ROOT, BASE_DIR
 from pathlib import Path
 import json
+import re
 import hashlib
 
 
@@ -55,6 +56,9 @@ def load_analyses(path:str) -> list:
 @require_GET
 def get_progress(request, uuids):
     try:
+        # Basic validation: non-empty and only hex/commas/dashes
+        if not uuids or not re.fullmatch(r"[0-9a-fA-F,-]+", uuids):
+            return JsonResponse({"phase": "idle"})
         path = progress_path(uuids)
         if path.exists():
             data = json.loads(path.read_text() or '{}')
