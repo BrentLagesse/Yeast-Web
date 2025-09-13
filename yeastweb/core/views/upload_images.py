@@ -22,7 +22,9 @@ from ..metadata_processing.dv_channel_parser import extract_channel_config, is_v
 def _progress_path(key: str) -> Path:
     p = Path(MEDIA_ROOT) / 'progress'
     p.mkdir(parents=True, exist_ok=True)
-    return p / f"{key}.json"
+    import hashlib
+    digest = hashlib.sha256(key.encode('utf-8')).hexdigest()
+    return p / f"{digest}.json"
 
 
 def _write_progress(key: str, phase: str) -> None:

@@ -367,7 +367,7 @@
         (async () => {
             try {
                 const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-                await fetch(`/api/progress/${encodeURIComponent("{{ progress_key }}")}/set/`, {
+                await fetch(`/api/progress/${encodeURIComponent("{{ progress_key|escapejs }}")}/set/`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -380,7 +380,7 @@
         })();
 
         // Start progress polling
-        const progressKey = "{{ progress_key }}";
+        const progressKey = "{{ progress_key|escapejs }}";
         let pollTimer = null;
         const startPolling = () => {
             const poll = async () => {

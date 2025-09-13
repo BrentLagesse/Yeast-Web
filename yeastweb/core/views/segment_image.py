@@ -12,6 +12,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 import json
+import hashlib
 
 # ==========================================================
 # Matplotlib backend (must run BEFORE importing pyplot/etc.)
@@ -80,10 +81,12 @@ logging.basicConfig(
     ]
 )
 
-def _progress_path(uuids: str) -> Path:
+def _progress_path(key: str) -> Path:
     p = Path(MEDIA_ROOT) / 'progress'
     p.mkdir(parents=True, exist_ok=True)
-    return p / f"{uuids}.json"
+    # Hash the key to avoid path traversal and long filenames
+    digest = hashlib.sha256(key.encode('utf-8')).hexdigest()
+    return p / f"{digest}.json"
 
 
 def _write_progress(uuids: str, phase: str) -> None:
