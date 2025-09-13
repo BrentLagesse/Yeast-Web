@@ -150,7 +150,7 @@
         input[type="file"] {
             display: none; 
         }
-        input[type="submit"] {
+        .submit-btn {
             background-color: #007bff;
             color: white;
             border: none;
@@ -160,10 +160,26 @@
             cursor: pointer;
             transition: background-color 0.3s ease;
             width: 100%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
-        input[type="submit"]:hover {
-            background-color: #0056b3; 
+        .submit-btn:hover { background-color: #0056b3; }
+
+        /* Spinner inside submit button */
+        .submit-btn .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.4);
+            border-top-color: #fff;
+            border-right-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+            display: none;
         }
+        .submit-btn.loading .spinner { display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
         a {
             background-color: #007bff; /* Full blue background */
             color: #fff; /* White text */
@@ -198,8 +214,11 @@
         </label>
     </div>
 
-    <!-- Submit button -->
-    <input type="submit" value="Preprocess Files">
+    <!-- Submit button with spinner + text -->
+    <button type="submit" class="submit-btn" id="uploadSubmit">
+        <span class="spinner" aria-hidden="true"></span>
+        <span class="btn-text">Preprocess Files</span>
+    </button>
 </form>
 
 <script>
@@ -330,24 +349,65 @@
             return; // Stop submission
         }
 
+        const submitBtn = document.getElementById('uploadSubmit');
+        const btnText = submitBtn.querySelector('.btn-text');
+
         // Disable all buttons and inputs
-        const buttons = document.querySelectorAll('.upload-btn, input[type="submit"], input[type="file"], .remove-btn');
-        buttons.forEach((button) => {
-            button.disabled = true; // Disable the button
-            button.style.pointerEvents = 'none'; // Disable pointer interactions
-            button.style.cursor = 'not-allowed'; // Change the cursor to not-allowed
-
-            // Handle specific button types
-            if (button.classList.contains('remove-btn') || button.classList.contains('upload-btn')) {
-                // "X" buttons
-                button.style.backgroundColor = button.style.backgroundColor; 
-            } else if (button.type === "submit") {
-                // Submit button
-                button.value = "Preprocessing..."; // Change text for the submit button
-                button.style.backgroundColor = '#0056b3'; // Set submit button hover color
-            }
+        const controls = document.querySelectorAll('.upload-btn, .submit-btn, input[type="file"], .remove-btn');
+        controls.forEach((el) => {
+            el.disabled = true;
+            el.style.pointerEvents = 'none';
+            el.style.cursor = 'not-allowed';
         });
+        submitBtn.classList.add('loading');
+        submitBtn.style.backgroundColor = '#0056b3';
+        btnText.textContent = 'Preprocessing Images';
 
+        // Reset server-side phase immediately so polling doesn't read stale values
+        (async () => {
+            try {
+                const csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+                const csrfToken = csrfEl?.value;
+                if (!csrfToken) {
+                    console.warn('CSRF token not found; skipping progress reset.');
+                    return;
+                }
+                const setUrl = new URL(`/api/progress/${encodeURIComponent("{{ progress_key|escapejs }}")}/set/`, window.location.origin);
+                await fetch(setUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken,
+                    },
+                    body: JSON.stringify({ phase: 'Preprocessing Images' }),
+                    credentials: 'same-origin',
+                });
+            } catch (e) { /* ignore */ }
+        })();
+
+        // Start progress polling
+        const progressKey = "{{ progress_key|escapejs }}";
+        let pollTimer = null;
+        const startPolling = () => {
+            const poll = async () => {
+                try {
+                    const pollUrl = new URL(`/api/progress/${encodeURIComponent(progressKey)}/`, window.location.origin);
+                    const resp = await fetch(pollUrl, { cache: 'no-store' });
+                    if (!resp.ok) return;
+                    const data = await resp.json();
+                    if (data && data.phase) {
+                        if (data.phase === 'Preprocessing Images') {
+                            btnText.textContent = data.phase;
+                        }
+                    }
+                } catch (e) { /* swallow */ }
+            };
+            pollTimer = setInterval(poll, 1000);
+            poll();
+        };
+        startPolling();
+
+        // Build form data from queued files
         const formData = new FormData();
         selectedFiles.forEach(file => formData.append('files', file));
 
@@ -362,6 +422,7 @@
             body: formData,
         })
         .then(res => res.json().then(data => {
+            if (pollTimer) clearInterval(pollTimer);
             // Case A: errors but no redirect => save & reload current page
             if (data.errors && !data.redirect) {
                 sessionStorage.setItem('dvErrors', JSON.stringify(data.errors));
@@ -371,14 +432,19 @@
             // Case B: redirect (with or without errors) => save errors and jump
             if (data.redirect) {
                 if (data.errors) {
-                sessionStorage.setItem('dvErrors', JSON.stringify(data.errors));
+                    sessionStorage.setItem('dvErrors', JSON.stringify(data.errors));
                 }
                 window.location.href = data.redirect;
             }
         }))
-            .catch(err => {
+        .catch(err => {
+            if (pollTimer) clearInterval(pollTimer);
             console.error(err);
             alert('Error during upload.');
+            // Re-enable minimally
+            submitBtn.classList.remove('loading');
+            controls.forEach((el) => { el.disabled = false; el.style.pointerEvents = ''; el.style.cursor = ''; });
+            btnText.textContent = 'Preprocess Files';
         });
     });
 

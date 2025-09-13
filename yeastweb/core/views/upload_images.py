@@ -3,7 +3,7 @@ from django.shortcuts import render, redirect
 from django.urls import reverse_lazy
 from core.forms import UploadImageForm
 from core.models import UploadedImage, DVLayerTifPreview
-from .utils import tif_to_jpg
+from .utils import tif_to_jpg, write_progress
 from pathlib import Path    
 from yeastweb.settings import MEDIA_ROOT
 from .variables import PRE_PROCESS_FOLDER_NAME
@@ -18,11 +18,17 @@ from django.contrib import messages
 from django.http import JsonResponse
 from ..metadata_processing.dv_channel_parser import extract_channel_config, is_valid_dv_file, get_dv_layer_count
 
+
 def upload_images(request):
     """
     Uploads and processes each image in the selected folder individually.
     Generates a unique UUID for each image and applies the same process to each one.
     """
+    # Ensure session exists to derive a stable progress key
+    if not request.session.session_key:
+        request.session.save()
+    progress_key = request.session.session_key
+
     if request.method == "POST":
         print("POST request received")
         
@@ -43,6 +49,7 @@ def upload_images(request):
         image_uuids = []
 
         # Iterate through each file and assign a unique UUID
+        preprocess_marked = False
         for image_location in files:
             name = image_location.name
             name = Path(name).stem
@@ -85,6 +92,9 @@ def upload_images(request):
             print(f"Processing file: {name}, UUID: {image_uuid}")
 
             # Apply the preprocessing step to each image
+            if not preprocess_marked:
+                write_progress(progress_key, "Preprocessing Images")
+                preprocess_marked = True
             generate_tif_preview_images(stored_dv_path, pre_processed_dir, instance, 4)
 
         preprocess_url = f'/image/preprocess/{",".join(map(str, image_uuids))}/'
@@ -114,7 +124,7 @@ def upload_images(request):
         return redirect(preprocess_url)
     else:
         form = UploadImageForm()
-    return render(request, 'form/uploadImage.html', {'form': form})
+    return render(request, 'form/uploadImage.html', {'form': form, 'progress_key': progress_key})
 
 def generate_tif_preview_images(dv_path :Path, save_path :Path, uploaded_image : UploadedImage, n_layers : int ):
     """

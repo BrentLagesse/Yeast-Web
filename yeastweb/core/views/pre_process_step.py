@@ -2,7 +2,7 @@ from django.shortcuts import get_object_or_404, get_list_or_404, redirect
 from django.http import JsonResponse
 from django.template.response import TemplateResponse
 from django.utils import inspect
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
 import sys, pkgutil, importlib, inspect
@@ -10,13 +10,15 @@ import sys, pkgutil, importlib, inspect
 from core.models import DVLayerTifPreview, UploadedImage
 from core.mrcnn.my_inference import predict_images
 from core.mrcnn.preprocess_images import preprocess_images
-from .utils import tif_to_jpg
+from .utils import tif_to_jpg, write_progress, progress_path
 from core.metadata_processing.dv_channel_parser import extract_channel_config
 from core.cell_analysis import Analysis
 
 from yeastweb.settings import MEDIA_ROOT, BASE_DIR
 from pathlib import Path
 import json
+import re
+import hashlib
 
 
 
@@ -49,6 +51,21 @@ def load_analyses(path:str) -> list:
                 mod_name + " was not an instance of Analysis"
 
     return analyses
+
+
+@require_GET
+def get_progress(request, uuids):
+    try:
+        # Basic validation: non-empty and only hex/commas/dashes
+        if not uuids or not re.fullmatch(r"[0-9a-fA-F,-]+", uuids):
+            return JsonResponse({"phase": "idle"})
+        path = progress_path(uuids)
+        if path.exists():
+            data = json.loads(path.read_text() or '{}')
+            return JsonResponse({"phase": data.get("phase", "idle")})
+        return JsonResponse({"phase": "idle"})
+    except Exception as e:
+        return JsonResponse({"phase": "idle"})
 
 
 def pre_process_step(request, uuids):
@@ -106,12 +123,23 @@ def pre_process_step(request, uuids):
 
         request.session['selected_analysis'] = selected_analysis  # save selected analysis to session
 
+        # Track when we first enter phases to mark progress once
+        preprocess_marked = False
+        detection_marked = False
+
         for image_uuid in uuid_list:
             img_obj = get_object_or_404(UploadedImage, uuid=image_uuid)
             out_dir = Path(MEDIA_ROOT) / image_uuid
 
+            if not preprocess_marked:
+                write_progress(uuids, "Preprocessing Images")
+                preprocess_marked = True
             prep_path, prep_list = preprocess_images(image_uuid, img_obj, out_dir)
             tif_to_jpg(Path(prep_path), out_dir)
+
+            if not detection_marked:
+                write_progress(uuids, "Detecting Cells")
+                detection_marked = True
             predict_images(prep_path, prep_list, out_dir)
 
         return redirect(f'/image/{uuids}/convert/')
@@ -137,6 +165,19 @@ def pre_process_step(request, uuids):
         'file_list': file_list,
         'analyses' : analyses_list,
     })
+
+@require_POST
+def set_progress(request, key):
+    try:
+        body = json.loads(request.body or '{}')
+    except Exception:
+        body = {}
+    phase = body.get('phase', 'idle')
+    try:
+        write_progress(key, phase)
+        return JsonResponse({"status": "ok"})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 
 @require_POST

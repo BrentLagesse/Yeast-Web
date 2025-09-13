@@ -11,6 +11,8 @@ import sys
 import time
 from collections import defaultdict
 from pathlib import Path
+import json
+import hashlib
 
 # ==========================================================
 # Matplotlib backend (must run BEFORE importing pyplot/etc.)
@@ -49,6 +51,7 @@ from django.utils import timezone
 # Local application imports
 # =========================
 from yeastweb.settings import BASE_DIR, MEDIA_ROOT, MEDIA_URL
+from .utils import write_progress
 from core.config import (
     DEFAULT_PROCESS_CONFIG,
     get_channel_config_for_uuid,
@@ -78,6 +81,8 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+
+## progress helpers moved to core.views.utils
 
 def set_options(opt):
     """
@@ -687,6 +692,10 @@ def segment_image(request, uuids):
             'arrested': configuration["arrested"],
             'analysis' : selected_analysis,
         }
+
+        # Mark accurate phase for UI only if user selected analyses
+        if selected_analysis:
+            write_progress(uuids, "Calculating Statistics")
 
         # For each cell_number in the segmentation, create/fetch a CellStatistics object
         # and call get_stats so it can mutate the fields on cp.

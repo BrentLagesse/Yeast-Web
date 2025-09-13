@@ -223,6 +223,31 @@
       }
       .button:hover { background-color: #0056b3; }
 
+      /* Slightly larger Analyze button to fit status text */
+      .button.analyze {
+        min-width: 220px;
+        padding: 12px 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+
+      /* Inline spinner shown only while loading */
+      .button.analyze .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        border-top-color: #fff;
+        border-right-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+        display: none;
+      }
+      .button.analyze.loading .spinner { display: inline-block; }
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+
       .dropdown-check-list:hover { background-color: #0056b3; color: #fff; }
 
       .button { transition: background-color 0.3s ease; }
@@ -327,7 +352,10 @@
         <div class="analysis">
           <form action="" method="post" enctype="multipart/form-data" id="preprocessForm">
             {% csrf_token %}
-            <input type="submit" value="Start Analysis" class="button" id="startAnalysisButton" />
+            <button type="submit" class="button analyze" id="startAnalysisButton">
+              <span class="spinner" aria-hidden="true"></span>
+              <span class="btn-text">Start Analysis</span>
+            </button>
             <div id="list1" class="dropdown-check-list" tabindex="100">
               <span class="anchor">Select Statistics</span>
               <ul class="items">
@@ -415,25 +443,103 @@
         loadImage((currentFileIndex - 1 + totalFiles) % totalFiles);
       });
 
-      // Disable buttons on form submit
-      document.getElementById("preprocessForm").addEventListener("submit", () => {
+      // Intercept submit: disable inputs, poll accurate progress, POST via fetch, then navigate
+      document.getElementById("preprocessForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const form = document.getElementById("preprocessForm");
         const btn = document.getElementById("startAnalysisButton");
+        const textEl = btn.querySelector(".btn-text");
+
         btn.disabled = true;
-        btn.value = "Analyzing...";
+        btn.classList.add("loading");
         btn.style.pointerEvents = "none";
         btn.style.cursor = "not-allowed";
         btn.style.backgroundColor = "#0056b3";
+        if (textEl) textEl.textContent = "Processing Images";
 
+        // Disable other interactive controls
         const plugin = document.getElementById("list1");
         if (plugin) {
           plugin.style.pointerEvents = "none";
           plugin.style.opacity = "0.8";
           plugin.style.backgroundColor = "#0056b3";
         }
-
         document.querySelectorAll(".channel-bar").forEach(bar => {
           bar.style.pointerEvents = "none";
         });
+
+        // Reset server-side phase immediately to avoid stale reads
+        try {
+          const csrfEl = document.querySelector('#preprocessForm [name=csrfmiddlewaretoken]');
+          const csrfToken = csrfEl?.value;
+          if (csrfToken) {
+            const setUrl = new URL(`/api/progress/${encodeURIComponent("{{ uuids|escapejs }}")}/set/`, window.location.origin);
+            await fetch(setUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+              },
+              body: JSON.stringify({ phase: 'Preprocessing Images' }),
+              credentials: 'same-origin',
+            });
+          } else {
+            console.warn('CSRF token not found; skipping progress reset.');
+          }
+        } catch (e) { /* ignore */ }
+
+        // Poll progress for accurate phases
+        const uuids = "{{ uuids|escapejs }}";
+        let pollTimer = null;
+        const startPolling = () => {
+          const poll = async () => {
+            try {
+              const pollUrl = new URL(`/api/progress/${encodeURIComponent(uuids)}/`, window.location.origin);
+              const resp = await fetch(pollUrl, { cache: 'no-store' });
+              if (!resp.ok) return;
+              const data = await resp.json();
+              if (data && data.phase && textEl) {
+                if (data.phase === "Preprocessing Images") {
+                  textEl.textContent = "Processing Images";
+                } else if (data.phase === "Detecting Cells") {
+                  textEl.textContent = data.phase;
+                } else if (data.phase === "Calculating Statistics") {
+                  // Only show statistics phase if user selected at least one analysis
+                  const hasStats = !!document.querySelector('input[name="selected_analysis"]:checked');
+                  if (hasStats) textEl.textContent = data.phase;
+                }
+              }
+            } catch (err) { /* ignore polling errors */ }
+          };
+          pollTimer = setInterval(poll, 1000);
+          // Kick off immediately
+          poll();
+        };
+        startPolling();
+
+        // Submit via fetch, allowing backend to run through redirects
+        try {
+          const resp = await fetch(window.location.href, {
+            method: 'POST',
+            body: new FormData(form),
+            credentials: 'same-origin',
+            redirect: 'follow',
+          });
+          if (pollTimer) clearInterval(pollTimer);
+          // Navigate to final URL (display page) once processing completes
+          if (resp && resp.url) {
+            window.location.href = resp.url;
+          } else {
+            window.location.href = `/image/{{ uuids }}/display/`;
+          }
+        } catch (err) {
+          if (pollTimer) clearInterval(pollTimer);
+          // On error, re-enable button minimally and surface a message
+          btn.disabled = false;
+          btn.classList.remove("loading");
+          if (textEl) textEl.textContent = "Start Analysis";
+          alert('Failed to start analysis. Please try again.');
+        }
       });
 
       // AJAX load
