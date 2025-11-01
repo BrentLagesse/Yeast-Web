@@ -39,7 +39,13 @@ def find_contours(images:GrayImage):
 
     contours_dapi, h = cv2.findContours(thresh_dapi, 1, 2)
     contours_dapi_3,_ = cv2.findContours(thresh_dapi_3, 1, 2) # return list of contours
+    for cnt in contours_dapi_3:
+        print("Contour area:")
+        print(cv2.contourArea(cnt))
     contours_dapi_3 = [cnt for cnt in contours_dapi_3 if cv2.contourArea(cnt)>100 and cv2.contourArea(cnt)<1000]
+    # TODO: Using the thresholds below prevents errors when there are no contours of the right area, but reduces accuracy if it did
+    # contours_dapi_3 = [cnt for cnt in contours_dapi_3 if cv2.contourArea(cnt)>20 and cv2.contourArea(cnt)<5000]
+    # contours_dapi_3 = [cnt for cnt in contours_dapi_3 if cv2.contourArea(cnt)>25 and cv2.contourArea(cnt)<5000]
 
 
     # Biggest contour for the cellular intensity boundary
@@ -54,11 +60,17 @@ def find_contours(images:GrayImage):
             largest_cell_cnt = cnt
     """
     # Identify the two largest contours in each set
+    # print("NOW!")
     bestContours = get_largest(contours)
-    bestContours_mcherry = get_largest(contours_mcherry[0])
+    # bestContours_mcherry = get_largest(contours_mcherry[0])
+    bestContours_mcherry = get_largest(contours_mcherry)
 
+    # TODO: Changing the following line to use contours_dapi[0] prevents crashes on certain inputs, but leads to lower accuracy on those that already worked
+    # bestContours_dapi = get_largest(contours_dapi[0])
     bestContours_dapi = get_largest(contours_dapi)
-    bestContours_dapi_3 = get_largest(contours_dapi_3[0])
+    # bestContours_dapi_3 = get_largest(contours_dapi_3[0])
+    bestContours_dapi_3 = get_largest(contours_dapi_3)
+    # raise Exception("Test")
 
     return {
         'bestContours': bestContours,

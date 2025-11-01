@@ -18,7 +18,7 @@ class UploadedImage(models.Model):
     def upload_to(instance, filename):
         uuid = instance.uuid
         name = instance.name
-        # file cannot have . in its
+        # file cannot have . in its name
         file_extension = '.' + filename.split('.')[-1]
         return f'{uuid}/{name}{file_extension}'
     name = models.TextField()
