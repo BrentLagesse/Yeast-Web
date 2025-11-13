@@ -13,13 +13,14 @@ Automated analysis of **DeltaVision (DV)** fluorescent microscopy stacks of yeas
    
 - [Overview](#overview)
 - [Key features](#key-features)
-- [Installation](#installation)
-  - [Environment Setup](#environment-setup)
-  - [Installing Dependencies](#installing-dependencies)
+- [Local deployment & installation](#local-deployment--installation)
+  - [Environment setup](#environment-setup)
+  - [Installing dependencies](#installing-dependencies)
   - [Migrations](#migrations)
   - [Launching project](#launching-project)
 - [Configuration](#configuration)
-- [Project layout](#project-layout)
+- [Architecture](#architecture)
+  - [Project layout](#project-layout)
 - [Data & artifacts](#data--artifacts)
 - [Workflow](#workflow)
   - [Uploading (UI & API)](#uploading-ui--api)
@@ -27,14 +28,9 @@ Automated analysis of **DeltaVision (DV)** fluorescent microscopy stacks of yeas
   - [Outputs & schemas](#outputs--schemas)
 - [HTTP routes](#http-routes)
 - [Examples](#examples)
-- [Benchmarks](#benchmarks)
 - [Testing](#testing)
-- [Deployment](#deployment)
-- [Operations](#operations)
-- [Security checklist](#security-checklist)
+- [Security](#security)
 - [Troubleshooting](#troubleshooting)
-- [Versioning & releases](#versioning--releases)
-- [Contributing](#contributing)
 - [Roadmap](#roadmap)
 - [License](#license)
 
@@ -60,7 +56,7 @@ The project is a tool to automatically analyze WIDE-fluorescent microscopy image
   - `cellular_intensity_sum`
 - **Web UI** to upload, preprocess, select analyses, display, and export tables.
 
-## Installation 
+## Local deployment & installation 
 You need to make sure git, virtualenv, and python3 (currently using 3.11.5) are installed and are in the $PATH (you can type those command names on the commandline and your computer finds them).
 
 1. Download the file "deepretina_final.h5" in the link below and place it in the weights directory under yeastweb/core/weights (may need to create the folder manually):
@@ -68,7 +64,7 @@ You need to make sure git, virtualenv, and python3 (currently using 3.11.5) are 
    https://drive.google.com/file/d/1moUKvWFYQoWg0z63F0JcSd3WaEPa4UY7/view?usp=sharing
 
 
-### Environment Setup
+### Environment setup
 
 1. Confirm Python is exactly 3.11.5; Python version  **NEEDS TO BE 3.11.5** or else it will not work:
    ```bash
@@ -107,7 +103,7 @@ You need to make sure git, virtualenv, and python3 (currently using 3.11.5) are 
    python -m pip --version   # path should point into Yeast-Web/.venv
 
 
-### Installing Dependencies
+### Installing dependencies
 Due to the machine learning part only works on certain versions of packages, we have to specifically use them. The easiest way do to do is to delete all your personal pip packages and reinstall them.
 
 
@@ -128,7 +124,7 @@ Due to the machine learning part only works on certain versions of packages, we 
    del deleteRequirements.txt
 
 ### Migrations
-You must have your virtual environment activated to make the respective migrations. Please refer to the previous steps under **Environment Setup**.
+You must have your virtual environment activated to make the respective migrations. Please refer to the previous steps under **Environment setup**.
 
 
 1. Delete the local SQLite database (If the file does not exist, no output or a “cannot find path” message is fine):
@@ -161,12 +157,34 @@ You must have your virtual environment activated to make the respective migratio
 ```
 yeastweb/yeastweb/settings.py
 ```
-- Local development works out of the box (SQLite, DEBUG on, email/Gmail placeholders, OAuth provider stubs).
-- If you only run locally, you **do not need to configure anything** here.
+- Local development works out of the box (SQLite, DEBUG on, email/Gmail placeholders, OAuth provider stubs)
+- If you only run locally, you **do not need to configure anything** here
 
 
 
-## Project layout
+## Architecture
+The server follows a layered architecture:
+
+```
+┌──────────────────────────────┐
+│       Presentation/UI        │  Django templates and JS  
+├──────────────────────────────┤
+│     Web/Application Layer    │  Request handlers  
+├──────────────────────────────┤
+│    Domain/Service Layer      │  Scientific/processing modules
+├──────────────────────────────┤
+│  Data & Infrastructure Layer │  Django models 
+└──────────────────────────────┘
+```
+**Flow**
+- UI
+- Views
+- Processing services
+- Models, database, and media
+
+
+
+### Project Layout
 ```
 Yeast-Web/
 ├─ Dockerfile         # python:3.11.5-slim
@@ -288,11 +306,106 @@ Caching can reuse artifacts when `use_cache=True`.
 
 
 ## Examples
+### 1) UI Upload (UI, single/multi file)
+
+**Start server**
+```bash
+python -m venv yeast_web
+# bash
+source yeast_web/Scripts/activate
+# PowerShell alternative:
+# .\yeast_web\Scripts\Activate.ps1
+
+python -m pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt --no-cache-dir
+
+python manage.py makemigrations accounts core
+python manage.py migrate
+python manage.py runserver
+```
+
+**Process the sample**
+1. Open http://localhost:8000/image/upload/
+2. Upload `example-dv-file/M3850/M3850_001_PRJ.dv`
+3. On **Preprocess**: verify channel order (DIC, DAPI, mCherry, GFP), then continue
+4. On **Display**: inspect per-cell outputs; export CSV/XLSX from the table
+
+**Expected artifacts**
+```
+media/<uuid>/
+├─ M3850_001_PRJ.dv
+├─ channel_config.json
+├─ preprocessed_images/
+│  ├─ DIC.tif
+│  ├─ DAPI.tif
+│  ├─ mCherry.tif
+│  └─ GFP.tif
+├─ preprocessed_images_list.csv
+├─ compressed_masks.csv
+├─ output/
+│  └─ mask.tif
+└─ segmented/
+   ├─ cell_0001.png
+   ├─ cell_0002.png
+   ├─ ...
+   └─ overlay_debug_*.png
+```
+
+### 2) Programmatic Upload (Python)
+
+```python
+# save as upload_sample.py and run with the server up
+import requests
+
+url = "http://localhost:8000/image/upload/"
+with open("example-dv-file/250307_M2472_N1_5_002_PRJ.dv", "rb") as f:
+    r = requests.post(url, files={"files": ("250307_M2472_N1_5_002_PRJ.dv", f, "application/octet-stream")}, allow_redirects=False)
+
+print("Status:", r.status_code)
+print("Next:", r.headers.get("Location") or r.text[:2000])  # open this URL in a browser to continue
+```
+
+
+## Testing
+Recommended:
+- **Fixtures**: tiny DV stacks for unit tests.
+- **Units**: channel parser, preprocessing transforms, RLE↔mask conversions.
+- **Integration**: upload → preprocess → segment → display (mock weights).
+- **CI**: Windows + Linux, Python 3.11.5.
+
+Run:
+```bash
+python manage.py test
+```
 
 
 
+## Security
+- If deploying, move secrets out of the repo (env vars or secret store) and rotate existing keys.
+- Set `DJANGO_DEBUG=False` in production and populate `ALLOWED_HOSTS`.
+- Enforce HTTPS at the proxy. Add HSTS and a strict CSP.
+- Add signup rate-limits or CAPTCHA.
+- Enable dependency and secret scanning.
+- Verify access control on display routes (already checks ownership).
 
 
+## Troubleshooting
+- **TensorFlow or import errors** → Use **Python 3.11.5** in a clean venv.
+- **Missing weights** → Put `core/mrcnn/weights/deepretina_final.h5`.
+- **DV rejected** → File must have exactly 4 layers.
+- **No outputs / blank display** → Check console and `debug.log`. Confirm `compressed_masks.csv` and `preprocessed_images_list.csv`.
+- **Cache mismatch** → Turn off `use_cache` if parameters changed.
+- **401 on display** → You are not the owner of the data.
+
+
+
+## Roadmap
+- Externalize secrets if you deploy beyond localhost.
+- Add tests, fixtures, and CI.
+- Health/metrics endpoints and dashboards.
+- Optional Postgres and object storage support.
+- Replace file-based progress with Redis/DB for better scale.
+- Accessibility review and responsive UI fixes.
 
 
 
