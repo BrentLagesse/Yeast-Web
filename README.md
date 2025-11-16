@@ -369,9 +369,9 @@ print("Next:", r.headers.get("Location") or r.text[:2000])  # open this URL in a
 ## Testing
 Recommended:
 - **Fixtures**: tiny DV stacks for unit tests.
-- **Units**: channel parser, preprocessing transforms, RLE↔mask conversions.
-- **Integration**: upload → preprocess → segment → display (mock weights).
-- **CI**: Windows + Linux, Python 3.11.5.
+- **Units**: channel parser, preprocessing transforms, RLE mask conversions.
+- **Integration**: upload, to preprocess, to segment, to display (mock weights).
+- **CI**: Windows/Linux, Python 3.11.5.
 
 Run:
 ```bash
@@ -390,12 +390,12 @@ python manage.py test
 
 
 ## Troubleshooting
-- **TensorFlow or import errors** → Use **Python 3.11.5** in a clean venv.
-- **Missing weights** → Put `core/mrcnn/weights/deepretina_final.h5`.
-- **DV rejected** → File must have exactly 4 layers.
-- **No outputs / blank display** → Check console and `debug.log`. Confirm `compressed_masks.csv` and `preprocessed_images_list.csv`.
-- **Cache mismatch** → Turn off `use_cache` if parameters changed.
-- **401 on display** → You are not the owner of the data.
+- **TensorFlow or import errors**: Use **Python 3.11.5** in a clean venv.
+- **Missing weights**: Put `core/mrcnn/weights/deepretina_final.h5`.
+- **DV rejected**: File must have exactly 4 layers.
+- **No outputs / blank display**: Check console and `debug.log`. Confirm `compressed_masks.csv` and `preprocessed_images_list.csv`.
+- **Cache mismatch**: Turn off `use_cache` if parameters changed.
+- **401 on display**: You are not the owner of the data.
 
 
 
