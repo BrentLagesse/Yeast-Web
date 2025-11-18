@@ -400,9 +400,7 @@ python manage.py test
 
 
 ## Roadmap
-- Externalize secrets if you deploy beyond localhost.
-- Add tests, fixtures, and CI.
-- Health/metrics endpoints and dashboards.
+- Metrics endpoints and dashboards.
 - Optional Postgres and object storage support.
 - Replace file-based progress with Redis/DB for better scale.
 - Accessibility review and responsive UI fixes.
