@@ -105,6 +105,7 @@ def display_cell(request, uuids):
                         'cellular_intensity_sum_DAPI': cell_stat.cellular_intensity_sum_DAPI,
                         'nucleus_intensity_sum_DAPI': cell_stat.nucleus_intensity_sum_DAPI,
                         'cytoplasmic_intensity_DAPI': cell_stat.cytoplasmic_intensity_DAPI,
+                        'category_GFP_dot': cell_stat.category_GFP_dot,
                     }
                 except CellStatistics.DoesNotExist:
                     statistics[str(i)] = None  # In case statistics are missing for a cell

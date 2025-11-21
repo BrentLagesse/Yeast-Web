@@ -163,6 +163,9 @@ def get_stats(cp, conf, selected_analysis):
     for i in range(0,len(contours_data['dot_contours'])):
         area = cv2.contourArea(contours_data['dot_contours'][i])
         setattr(cp, f'red_contour_{i+1}_size', area)
+    # for i in range(0,len(contours_data['contours_mcherry'])):
+    #     area = cv2.contourArea(contours_data['contours_mcherry'][i])
+    #     setattr(cp, f'red_contour_{i+1}_size', area)
 
     cp.blue_contour_size = cv2.contourArea(best_contour_dapi)
 
@@ -174,6 +177,14 @@ def get_stats(cp, conf, selected_analysis):
 
     cv2.drawContours(edit_DAPI_img, contours_data['dot_contours'],-1, (0, 0, 255), 1)
     cv2.drawContours(edit_DAPI_img, [best_contour_dapi],0, (255, 0, 0), 1)
+
+
+    # Drawing GFP
+    cv2.drawContours(edit_mCherry_img, contours_data['contours_gfp'], -1, (0, 255, 0),1)
+
+    cv2.drawContours(edit_GFP_img, contours_data['contours_gfp'], -1, (0, 255, 0),1)
+
+    cv2.drawContours(edit_DAPI_img, contours_data['contours_gfp'],-1, (0, 255, 0), 1)
 
     import_path = BASE_DIR / 'core/cell_analysis'
     analyses = import_analyses(import_path, selected_analysis)
@@ -618,7 +629,9 @@ def segment_image(request, uuids):
             
             # Overlay the outlines on the original image in green
             image_outlined = image.copy()
-            image_outlined[outlines > 0] = (0, 255, 0)
+            # image_outlined[outlines > 0] = (0, 255, 0)
+            # NOTE: Temporarily changing to cyan to debug GFP
+            image_outlined[outlines > 0] = (0, 255, 255)
 
             # Iterate over each integer in the segmentation and save the outline of each cell onto the outline file
             for i in range(1, int(np.max(seg) + 1)):

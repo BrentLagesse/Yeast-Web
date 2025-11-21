@@ -17,7 +17,7 @@ class GreenRedIntensity(Analysis):
         GFP_gray = self.preprocessed_images.get_image('GFP')
 
         for i in range (0,len(dot_contours)):
-            mask = create_circular_mask(mcherry_gray.shape, dot_contours,i)  # draw a mask around countour
+            mask = create_circular_mask(mcherry_gray.shape, dot_contours,i)  # draw a mask around contour
             red_intensity = calculate_intensity_mask(mcherry_gray, mask)
             green_intensity = calculate_intensity_mask(GFP_gray, mask)
             ratio = green_intensity / red_intensity if red_intensity != 0 else 0
