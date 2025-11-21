@@ -24,6 +24,7 @@ def find_contours(images:GrayImage):
     # ret, thresh = cv2.threshold(images.get_image('gray_mcherry'), 0, 1,
     #                             cv2.ADAPTIVE_THRESH_GAUSSIAN_C | cv2.THRESH_OTSU)
 
+    # TODO: No contours for second GFP image cell 14 are caused by the gray_mcherry threshold missing the dull signals
     thresh_mcherry = cv2.Canny(images.get_image('gray_mcherry_3'), 50, 150)
     thresh = cv2.Canny(images.get_image('gray_mcherry'), 50, 150)
 
@@ -33,8 +34,7 @@ def find_contours(images:GrayImage):
     # ret_dapi, thresh_dapi = cv2.threshold(images.get_image('gray_dapi'), 0, 1,
     #                             cv2.ADAPTIVE_THRESH_GAUSSIAN_C | cv2.THRESH_OTSU)
     
-    # TODO thresholds need work and the canny edges need to be closed when they aren't
-
+    # TODO thresholds need work and the canny edges need to be closed when they aren't. In particular, sometimes chooses wrong intensity of cell
     thresh_dapi_3 = cv2.Canny(images.get_image('gray_dapi_3'), 60, 75)
     thresh_dapi = cv2.Canny(images.get_image('gray_dapi'), 60, 75)
 
@@ -46,11 +46,9 @@ def find_contours(images:GrayImage):
 
     # TODO: verify that this works
     thresh_gfp = cv2.Canny(images.get_image('GFP'), 50, 150)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    # kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
     thresh_gfp = cv2.morphologyEx(thresh_gfp, cv2.MORPH_CLOSE, kernel)
-    # TODO: Might need to add erosion
-
-    # TODO: No contours for second GFP image cell 14?
 
     #cell_int_ret, cell_int_thresh = cv2.threshold(images.get_image('GFP'), 0, 1,
     #                            cv2.ADAPTIVE_THRESH_GAUSSIAN_C | cv2.THRESH_OTSU)

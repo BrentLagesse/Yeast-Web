@@ -38,9 +38,10 @@ class GFPDot(Analysis):
                     for i in range(len(centers)):
                         for green_center in green_centers.values():
                             if math.dist(centers[i], green_center) <= 20:
-                                num_signals[i] += 1 # TODO: This is sometimes wrong because of "overzealous" GFP contours
+                                num_signals[i] += 1 # TODO: This is sometimes wrong because of GFP contours being counted twice sometimes
 
-                    if num_signals[0] == num_signals[1] and num_signals[0] == 1:    # 1 green dot with each of the 2 red dots
+                    # TODO: Because of above issue, using >= instead of == below; should fix this issue in contour_operations.py find_contours
+                    if num_signals[0] >= 1 and num_signals[1] >= 1:    # 1 green dot with each of the 2 red dots
                         self.cp.category_GFP_dot = 1
                     elif (num_signals[0] == 1 and num_signals[1] == 0) or (num_signals[0] == 0 and num_signals[1] == 1):    # 1 green dot with only 1 of the 2 red dots
                         self.cp.category_GFP_dot = 2
